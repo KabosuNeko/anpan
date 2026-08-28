@@ -37,9 +37,47 @@ export function formatEta(seconds: number): string {
   return formatDuration(seconds)
 }
 
-/** Truncate to `max` columns with trailing "…". */
+/**
+ * Calculate display width in terminal cells, correctly treating CJK/full-width
+ * characters as 2 cells wide.
+ */
+export function strWidth(str: string): number {
+  let width = 0
+  for (const ch of str) {
+    const code = ch.codePointAt(0) ?? 0
+    if (
+      (code >= 0x1100 && code <= 0x115f) ||
+      (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7a3) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe10 && code <= 0xfe19) ||
+      (code >= 0xfe30 && code <= 0xfe6f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6) ||
+      (code >= 0x20000 && code <= 0x2fffd) ||
+      (code >= 0x30000 && code <= 0x3fffd)
+    ) {
+      width += 2
+    } else {
+      width += 1
+    }
+  }
+  return width
+}
+
+/** Truncate to `max` terminal columns with trailing "…", CJK-aware. */
 export function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+  if (strWidth(text) <= max) return text
+  let res = ''
+  let curWidth = 0
+  const target = Math.max(1, max - 1)
+  for (const ch of text) {
+    const w = strWidth(ch)
+    if (curWidth + w > target) break
+    res += ch
+    curWidth += w
+  }
+  return `${res}…`
 }
 
 /** Replace $HOME prefix with ~ and optionally truncate. */

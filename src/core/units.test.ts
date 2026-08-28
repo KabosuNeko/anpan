@@ -28,9 +28,11 @@ test('formatSpeed and formatEta delegate correctly', () => {
   assert.equal(formatEta(0), '')
 })
 
-test('truncate clips long text with ellipsis', () => {
+test('truncate clips long text with ellipsis and handles CJK width', () => {
   assert.equal(truncate('hello', 10), 'hello')
   assert.equal(truncate('hello world', 8), 'hello w…')
+  // CJK characters take 2 terminal columns each
+  assert.equal(truncate('澤野弘之', 6), '澤野…')
 })
 
 test('shortenPath replaces homedir with ~ and truncates', () => {

@@ -45,22 +45,22 @@ export function InfoPane({width, stageName, meta, platform, config, hasAria2c}: 
         <Box flexDirection="column" gap={0}>
           <Box justifyContent="space-between">
             <Text dimColor={palette.dimAccent}>site</Text>
-            <Text bold>{platform?.label ?? 'unknown'}</Text>
+            <Text bold>{truncate(platform?.label ?? 'unknown', contentWidth - 6)}</Text>
           </Box>
-          <Box justifyContent="space-between">
-            <Text dimColor={palette.dimAccent}>title</Text>
-            <Text bold>{truncate(meta.title, contentWidth - 6)}</Text>
-          </Box>
-          {meta.uploader ? (
-            <Box justifyContent="space-between">
-              <Text dimColor={palette.dimAccent}>channel</Text>
-              <Text>{truncate(meta.uploader, contentWidth - 8)}</Text>
-            </Box>
-          ) : null}
           {meta.duration ? (
             <Box justifyContent="space-between">
               <Text dimColor={palette.dimAccent}>length</Text>
               <Text>{formatDuration(meta.duration)}</Text>
+            </Box>
+          ) : null}
+          <Box flexDirection="column">
+            <Text dimColor={palette.dimAccent}>title</Text>
+            <Text bold>{`  ${truncate(meta.title, contentWidth - 2)}`}</Text>
+          </Box>
+          {meta.uploader ? (
+            <Box flexDirection="column">
+              <Text dimColor={palette.dimAccent}>channel</Text>
+              <Text>{`  ${truncate(meta.uploader, contentWidth - 2)}`}</Text>
             </Box>
           ) : null}
         </Box>

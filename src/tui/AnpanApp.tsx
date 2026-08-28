@@ -126,6 +126,19 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
     setStage({name: 'input'})
   }, [])
 
+  const handleUrlChange = useCallback((newUrl: string) => {
+    setUrl(newUrl)
+    if (!newUrl.trim()) {
+      setMeta(null)
+      setPlatform(null)
+      setPortions([])
+      setCachedJsonPath(undefined)
+      if (stage.name === 'selecting' || stage.name === 'error') {
+        setStage({name: 'input'})
+      }
+    }
+  }, [stage.name])
+
   const startBake = useCallback(
     async (portion: Portion) => {
       cancel()
@@ -246,8 +259,8 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
     if (key.escape) {
       if (stage.name === 'probing' || stage.name === 'baking') {
         cancel()
-      } else if (stage.name === 'selecting') {
-        setStage({name: 'input'})
+      } else if (stage.name === 'selecting' || stage.name === 'input') {
+        reset()
       }
     }
     if (key.return && stage.name === 'error') {
@@ -338,7 +351,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
           width={rightWidth}
           stage={stage}
           url={url}
-          onUrlChange={setUrl}
+          onUrlChange={handleUrlChange}
           onUrlSubmit={v => {
             const trimmed = v.trim()
             if (trimmed && isLikelyUrl(trimmed)) void startProbe(trimmed)
