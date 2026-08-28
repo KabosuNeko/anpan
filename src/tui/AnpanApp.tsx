@@ -1,13 +1,20 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react'
+import os from 'node:os'
 import {Box, Text, useApp, useInput, useStdout} from 'ink'
-import {AnpanMascot} from './mascot/AnpanMascot.js'
-import {InfoPane} from './panes/InfoPane.js'
-import {ActionPane} from './panes/ActionPane.js'
+import SelectInput, {type IndicatorProps, type ItemProps} from 'ink-select-input'
+import Spinner from 'ink-spinner'
+import {BunCard} from './primitives/BunCard.js'
+import {CrustBar} from './primitives/CrustBar.js'
 import {FooterKeys} from './primitives/FooterKeys.js'
+import {KeyField} from './primitives/KeyField.js'
 import {StageViewport} from './primitives/StageViewport.js'
+import {TrayInput} from './primitives/TrayInput.js'
+import {AnpanMascot} from './mascot/AnpanMascot.js'
+import {SettingsView} from './settings/SettingsView.js'
 import {tapTargetAt, locateFrameRow, frameRowBounds, type TapTarget} from './events/hitTest.js'
 import {usePointer} from './events/usePointer.js'
 import {ThemeProvider, useAnpanTheme} from './theme/palette.js'
+import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate, wrapText} from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
 import {loadConfig, saveConfig, type AnpanConfig} from '../system/config.js'
 import {identifySite, isLikelyUrl, type SiteInfo} from '../core/domains.js'
@@ -24,7 +31,52 @@ import {findAria2c, buildAria2cArgs} from '../engine/aria2c.js'
 
 export type {BakeProgress}
 
+const BAKE_BUTTON = 'bake'
+const DONE_LABEL = '↵ download another'
 const TAGLINE = 'minimal terminal video downloader'
+
+const portionLabel = (p: Portion) => p.label
+
+function PortionIndicator({isSelected}: IndicatorProps) {
+  const palette = useAnpanTheme()
+  return (
+    <Box marginRight={1}>
+      <Text dimColor={!isSelected && palette.dimAccent}>{isSelected ? '❯' : ' '}</Text>
+    </Box>
+  )
+}
+
+function PortionItem({isSelected, label}: ItemProps) {
+  return (
+    <Text bold={isSelected}>
+      {label}
+    </Text>
+  )
+}
+
+const Gap = ({lines = 1}: {lines?: number}) => (
+  <Box flexDirection="column" flexShrink={0}>
+    {Array.from({length: lines}, (_, i) => (
+      <Text key={i}> </Text>
+    ))}
+  </Box>
+)
+
+function partTag(progress: BakeProgress): string {
+  return progress.totalParts > 1 ? `part ${progress.part + 1}/${progress.totalParts}  ` : ''
+}
+
+function progressMeta(progress: BakeProgress): string {
+  const speed = progress.speed ? formatSpeed(progress.speed) : ''
+  const eta = progress.eta ? `${formatEta(progress.eta)} left` : ''
+  return `${partTag(progress)}${speed.padStart(10)}  ${eta.padEnd(12)}`
+}
+
+function indeterminateMeta(progress: BakeProgress): string {
+  const bytes = formatBytes(progress.downloadedBytes)
+  const speed = progress.speed ? formatSpeed(progress.speed) : ''
+  return `${partTag(progress)}${bytes.padStart(8)}  ${speed.padEnd(10)}`
+}
 
 export type Outcome = {filepath?: string}
 
@@ -86,7 +138,11 @@ export function AnpanApp(props: AnpanAppProps) {
   )
 }
 
-function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
+function AppContent({
+  initialUrl,
+  clipboardUrl,
+  onOutcome,
+}: AnpanAppProps) {
   const palette = useAnpanTheme()
   const {exit} = useApp()
   const {stdout} = useStdout()
@@ -117,21 +173,12 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
     abortRef.current = null
   }, [])
 
-  const reset = useCallback(() => {
-    setUrl('')
-    setMeta(null)
-    setPortions([])
-    setPlatform(null)
-    setCachedJsonPath(undefined)
-    setStage({name: 'input'})
-  }, [])
-
   const handleUrlChange = useCallback((newUrl: string) => {
     setUrl(newUrl)
     if (!newUrl.trim()) {
       setMeta(null)
-      setPlatform(null)
       setPortions([])
+      setPlatform(null)
       setCachedJsonPath(undefined)
       if (stage.name === 'selecting' || stage.name === 'error') {
         setStage({name: 'input'})
@@ -253,6 +300,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
     }
 
     if (showSettings) {
+      // handled by SettingsView
       return
     }
 
@@ -260,14 +308,24 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
       if (stage.name === 'probing' || stage.name === 'baking') {
         cancel()
       } else if (stage.name === 'selecting' || stage.name === 'input') {
-        reset()
+        setUrl('')
+        setMeta(null)
+        setPortions([])
+        setPlatform(null)
+        setCachedJsonPath(undefined)
+        setStage({name: 'input'})
       }
     }
     if (key.return && stage.name === 'error') {
       setStage({name: 'input'})
     }
     if (key.return && stage.name === 'baked') {
-      reset()
+      setUrl('')
+      setMeta(null)
+      setPortions([])
+      setPlatform(null)
+      setCachedJsonPath(undefined)
+      setStage({name: 'input'})
     }
   })
 
@@ -293,7 +351,9 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
           action: () => {
             cancel()
             setShowSettings(false)
-            reset()
+            setUrl('')
+            setMeta(null)
+            setStage({name: 'input'})
           },
         })
       }
@@ -301,7 +361,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
 
     if (stage.name === 'input') {
       targets.push({
-        match: 'bake',
+        match: BAKE_BUTTON,
         padY: 1,
         action: () => {
           if (url.trim() && isLikelyUrl(url.trim())) void startProbe(url.trim())
@@ -311,8 +371,12 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
 
     if (stage.name === 'baked') {
       targets.push({
-        match: 'download another',
-        action: reset,
+        match: DONE_LABEL,
+        action: () => {
+          setUrl('')
+          setMeta(null)
+          setStage({name: 'input'})
+        },
       })
     }
 
@@ -322,66 +386,188 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
     })
 
     clickTargets.current = targets
-  }, [stage, url, showSettings, reset, cancel, startProbe])
+  }, [stage, url, showSettings])
 
-  // responsive layout dimensions
-  const totalWidth = Math.min(78, Math.max(68, cols - 2))
-  const leftWidth = 28
-  const rightWidth = totalWidth - leftWidth - 1
-  const dashboardHeight = 14
+  const panelWidth = Math.min(64, cols - 4)
 
   return (
     <StageViewport>
       <AnpanMascot />
-      <Box height={1}>
-        <Text dimColor={palette.dimAccent}>{TAGLINE}</Text>
-      </Box>
+      <Gap />
+      <Text dimColor={palette.dimAccent}>
+        {TAGLINE}
+      </Text>
+      <Gap />
 
-      {/* ── 2-Column Split Dashboard ────────────────────────── */}
-      <Box flexDirection="row" width={totalWidth} gap={1} alignItems="stretch">
-        <InfoPane
-          width={leftWidth}
-          height={dashboardHeight}
-          stageName={stage.name}
-          meta={meta}
-          platform={platform}
-          config={config}
-          hasAria2c={Boolean(aria2cPathRef.current)}
-        />
-
-        <ActionPane
-          width={rightWidth}
-          height={dashboardHeight}
-          stage={stage}
-          url={url}
-          onUrlChange={handleUrlChange}
-          onUrlSubmit={v => {
-            const trimmed = v.trim()
-            if (trimmed && isLikelyUrl(trimmed)) void startProbe(trimmed)
-          }}
-          clipboardUrl={clipboardUrl}
-          history={history}
-          portions={portions}
-          onPortionSelect={startBake}
-          showSettings={showSettings}
-          config={config}
-          onConfigChange={updated => {
-            setConfig(updated)
-            saveConfig(updated)
-          }}
-          onCloseSettings={() => setShowSettings(false)}
-          onReset={reset}
-        />
-      </Box>
-
-      {/* ── Footer ─────────────────────────────────────────── */}
-      <Box height={1}>
-        {showSettings ? (
+      {/* ── Settings View ─────────────────────────────────────── */}
+      {showSettings ? (
+        <>
+          <SettingsView
+            width={panelWidth}
+            config={config}
+            onChange={updated => {
+              setConfig(updated)
+              saveConfig(updated)
+            }}
+            onClose={() => setShowSettings(false)}
+          />
+          <Gap />
           <FooterKeys hints={[['↑↓', 'select'], ['↵', 'edit/toggle'], ['⇄', 'preset'], ['esc', 'close']]} />
-        ) : (
+        </>
+      ) : (
+        <>
+          {/* ── Input Stage ───────────────────────────────────── */}
+          {stage.name === 'input' && (
+            <>
+              <TrayInput
+                title="url"
+                width={panelWidth}
+                actionLabel={BAKE_BUTTON}
+                actionDim={!url.trim()}
+              >
+                <KeyField
+                  value={url}
+                  onChange={handleUrlChange}
+                  onSubmit={v => {
+                    const trimmed = v.trim()
+                    if (trimmed && isLikelyUrl(trimmed)) void startProbe(trimmed)
+                  }}
+                  placeholder={clipboardUrl ? `${clipboardUrl}  ⇥ paste` : 'https://...'}
+                  width={panelWidth - 8}
+                  history={history}
+                  submitOnPaste={isLikelyUrl}
+                  onTab={clipboardUrl ? () => {setUrl(clipboardUrl); void startProbe(clipboardUrl)} : undefined}
+                />
+              </TrayInput>
+              {stage.warning && (
+                <>
+                  <Gap />
+                  <Text color="yellow">{stage.warning}</Text>
+                </>
+              )}
+            </>
+          )}
+
+          {/* ── Probing Stage ─────────────────────────────────── */}
+          {stage.name === 'probing' && (
+            <Box>
+              <Text>
+                <Spinner type="dots" />
+              </Text>
+              <Text dimColor={palette.dimAccent}>
+                {' '}
+                {stage.status}
+              </Text>
+            </Box>
+          )}
+
+          {/* ── Selecting Stage ───────────────────────────────── */}
+          {stage.name === 'selecting' && meta && (
+            <>
+              <Box flexDirection="column" alignItems="center" width={panelWidth}>
+                <Text bold>
+                  {truncate(meta.title, panelWidth)}
+                </Text>
+                <Text dimColor={palette.dimAccent}>
+                  {[meta.uploader, meta.duration ? formatDuration(meta.duration) : '', platform?.label]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </Box>
+              <Gap />
+              <BunCard title="format" width={panelWidth}>
+                <SelectInput
+                  items={portions.map(p => ({label: portionLabel(p), value: p}))}
+                  onSelect={item => void startBake(item.value)}
+                  indicatorComponent={PortionIndicator}
+                  itemComponent={PortionItem}
+                />
+              </BunCard>
+            </>
+          )}
+
+          {/* ── Baking / Downloading Stage ────────────────────── */}
+          {stage.name === 'baking' && (
+            <>
+              {meta && (
+                <Text bold>
+                  {truncate(meta.title, panelWidth)}
+                </Text>
+              )}
+              <Gap />
+              {stage.processing ? (
+                <Box>
+                  <Text>
+                    <Spinner type="dots" />
+                  </Text>
+                  <Text dimColor={palette.dimAccent}>
+                    {' '}
+                    processing / merging…
+                  </Text>
+                </Box>
+              ) : stage.progress ? (
+                <>
+                  {stage.progress.totalBytes ? (
+                    <>
+                      <CrustBar percent={stage.progress.downloadedBytes / stage.progress.totalBytes} width={Math.min(40, panelWidth - 10)} />
+                      <Text dimColor={palette.dimAccent}>
+                        {progressMeta(stage.progress)}
+                      </Text>
+                    </>
+                  ) : (
+                    <Text dimColor={palette.dimAccent}>
+                      {indeterminateMeta(stage.progress)}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <Box>
+                  <Text>
+                    <Spinner type="dots" />
+                  </Text>
+                  <Text dimColor={palette.dimAccent}>
+                    {' '}
+                    downloading…
+                  </Text>
+                </Box>
+              )}
+            </>
+          )}
+
+          {/* ── Baked / Completed Stage ───────────────────────── */}
+          {stage.name === 'baked' && (
+            <>
+              <Text bold>
+                downloaded
+              </Text>
+              <Text dimColor={palette.dimAccent}>
+                {shortenPath(stage.filepath, os.homedir(), panelWidth)}
+              </Text>
+              <Gap />
+              <Text>{DONE_LABEL}</Text>
+            </>
+          )}
+
+          {/* ── Error Stage ───────────────────────────────────── */}
+          {stage.name === 'error' && (
+            <>
+              <Text color="red" bold>
+                download failed
+              </Text>
+              {wrapText(stage.message, panelWidth).map((line, i) => (
+                <Text key={i} dimColor={palette.dimAccent}>
+                  {line}
+                </Text>
+              ))}
+              <Gap />
+              <Text>↵ retry</Text>
+            </>
+          )}
+
+          <Gap />
           <FooterKeys hints={HINTS[stage.name]} />
-        )}
-      </Box>
+        </>
+      )}
     </StageViewport>
   )
 }
