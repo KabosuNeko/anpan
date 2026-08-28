@@ -328,6 +328,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
   const totalWidth = Math.min(78, Math.max(68, cols - 2))
   const leftWidth = 28
   const rightWidth = totalWidth - leftWidth - 1
+  const dashboardHeight = 14
 
   return (
     <StageViewport>
@@ -340,6 +341,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
       <Box flexDirection="row" width={totalWidth} gap={1} alignItems="stretch">
         <InfoPane
           width={leftWidth}
+          height={dashboardHeight}
           stageName={stage.name}
           meta={meta}
           platform={platform}
@@ -349,6 +351,7 @@ function AppContent({initialUrl, clipboardUrl, onOutcome}: AnpanAppProps) {
 
         <ActionPane
           width={rightWidth}
+          height={dashboardHeight}
           stage={stage}
           url={url}
           onUrlChange={handleUrlChange}

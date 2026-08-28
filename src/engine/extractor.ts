@@ -100,7 +100,12 @@ export function extractPortions(meta: VideoMeta): Portion[] {
     const candidates = videoStreams.filter(s => s.height === height)
     const best = [...candidates].sort((a, b) => scoreStream(b) - scoreStream(a))[0]!
     const isMuxed = best.acodec !== undefined && best.acodec !== 'none'
-    const estimatedSize = (best.filesize ?? best.filesize_approx ?? 0) + (isMuxed ? 0 : audioSize ?? 0)
+    let videoBytes = best.filesize ?? best.filesize_approx
+    if (!videoBytes && best.tbr && meta.duration) {
+      videoBytes = Math.round(((best.tbr * 1000) / 8) * meta.duration)
+    }
+
+    const estimatedSize = videoBytes ? videoBytes + (isMuxed ? 0 : audioSize ?? 0) : 0
     const sizeTag = estimatedSize > 0 ? ` · ~${formatBytes(estimatedSize)}` : ''
     portions.push({
       kind: 'video',

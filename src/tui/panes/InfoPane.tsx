@@ -9,6 +9,7 @@ import type {AnpanConfig} from '../../system/config.js'
 
 type InfoPaneProps = {
   width: number
+  height: number
   stageName: string
   meta: VideoMeta | null
   platform: SiteInfo | null
@@ -16,7 +17,7 @@ type InfoPaneProps = {
   hasAria2c: boolean
 }
 
-export function InfoPane({width, stageName, meta, platform, config, hasAria2c}: InfoPaneProps) {
+export function InfoPane({width, height, stageName, meta, platform, config, hasAria2c}: InfoPaneProps) {
   const palette = useAnpanTheme()
   const contentWidth = width - 4
 
@@ -28,13 +29,14 @@ export function InfoPane({width, stageName, meta, platform, config, hasAria2c}: 
     <Box
       flexDirection="column"
       width={width}
+      height={height}
       borderStyle="round"
       borderColor={palette.muted}
       borderDimColor={palette.dimAccent}
       paddingX={1}
     >
       <Box justifyContent="space-between">
-        <Text bold>anpan</Text>
+        <Text bold>info</Text>
         <Text dimColor={palette.dimAccent}>v0.1.0</Text>
       </Box>
 
@@ -43,39 +45,27 @@ export function InfoPane({width, stageName, meta, platform, config, hasAria2c}: 
       {/* Video Details if Probed */}
       {meta ? (
         <Box flexDirection="column" gap={0}>
-          <Box justifyContent="space-between">
-            <Text dimColor={palette.dimAccent}>site</Text>
-            <Text bold>{truncate(platform?.label ?? 'unknown', contentWidth - 6)}</Text>
-          </Box>
-          {meta.duration ? (
-            <Box justifyContent="space-between">
-              <Text dimColor={palette.dimAccent}>length</Text>
-              <Text>{formatDuration(meta.duration)}</Text>
-            </Box>
-          ) : null}
-          <Box flexDirection="column">
-            <Text dimColor={palette.dimAccent}>title</Text>
-            <Text bold>{`  ${truncate(meta.title, contentWidth - 2)}`}</Text>
-          </Box>
+          <Text bold>{truncate(meta.title, contentWidth)}</Text>
           {meta.uploader ? (
-            <Box flexDirection="column">
-              <Text dimColor={palette.dimAccent}>channel</Text>
-              <Text>{`  ${truncate(meta.uploader, contentWidth - 2)}`}</Text>
-            </Box>
+            <Text dimColor={palette.dimAccent}>{truncate(meta.uploader, contentWidth)}</Text>
           ) : null}
+          <Text dimColor={palette.dimAccent}>
+            {[platform?.label, meta.duration ? formatDuration(meta.duration) : ''].filter(Boolean).join(' · ')}
+          </Text>
         </Box>
       ) : (
         <Box flexDirection="column" gap={0}>
+          <Text bold>anpan</Text>
+          <Text dimColor={palette.dimAccent}>minimal video downloader</Text>
           <Box justifyContent="space-between">
             <Text dimColor={palette.dimAccent}>status</Text>
             <Text>{stageName}</Text>
           </Box>
-          <Box justifyContent="space-between">
-            <Text dimColor={palette.dimAccent}>format</Text>
-            <Text>{config.preferQuality}</Text>
-          </Box>
         </Box>
       )}
+
+      {/* Spacer to push engine info to bottom */}
+      <Box flexGrow={1} />
 
       <Text dimColor={palette.dimAccent}>{'─'.repeat(contentWidth)}</Text>
 
