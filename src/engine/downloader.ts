@@ -98,7 +98,35 @@ export function bakeVideo(
             part,
             totalParts,
           })
-        } else if (line.includes('Downloading 1 format(s):')) {
+        } else {
+          const ariaMatch =
+            /^\[#[0-9a-fA-F]+\s+([^\/]+)\/([^(]+)\((\d+)%\)\s+CN:(\d+)\s+DL:([^ \]]+)(?:\s+ETA:([^ \]]+))?\]/.exec(
+              line,
+            )
+          if (ariaMatch) {
+            const downloadedBytes = parseUnitBytes(ariaMatch[1]!)
+            const totalBytes = parseUnitBytes(ariaMatch[2]!)
+            const speed = parseUnitBytes(ariaMatch[5]!)
+            let etaSeconds: number | undefined
+            if (ariaMatch[6]) {
+              etaSeconds = parseAriaEta(ariaMatch[6])
+            } else if (speed > 0 && totalBytes > downloadedBytes) {
+              etaSeconds = Math.round((totalBytes - downloadedBytes) / speed)
+            }
+
+            if (downloadedBytes < lastDownloaded && downloadedBytes > 0) part++
+            lastDownloaded = downloadedBytes
+            handlers.onProgress({
+              downloadedBytes,
+              totalBytes: totalBytes > 0 ? totalBytes : undefined,
+              speed,
+              eta: etaSeconds,
+              part,
+              totalParts,
+            })
+          }
+        }
+        if (line.includes('Downloading 1 format(s):')) {
           totalParts = (line.split('format(s):')[1] ?? '').trim().split('+').length
         } else if (line.includes('[Merger]') || line.includes('[ExtractAudio]')) {
           const merging = /^\[Merger\] Merging formats into "(.+)"$/.exec(line)?.[1]
@@ -146,6 +174,28 @@ function parseNumber(value: string | undefined): number | undefined {
   if (!value || value === 'NA' || value === 'None') return undefined
   const n = Number.parseFloat(value)
   return Number.isFinite(n) ? n : undefined
+}
+
+function parseUnitBytes(str: string): number {
+  const match = /^([0-9.]+)\s*([A-Za-z]+)?$/.exec(str.trim())
+  if (!match) return 0
+  const val = Number.parseFloat(match[1]!)
+  const unit = (match[2] ?? '').toLowerCase()
+  if (unit.startsWith('g')) return Math.round(val * 1024 * 1024 * 1024)
+  if (unit.startsWith('m')) return Math.round(val * 1024 * 1024)
+  if (unit.startsWith('k')) return Math.round(val * 1024)
+  return Math.round(val)
+}
+
+function parseAriaEta(etaStr: string): number | undefined {
+  let seconds = 0
+  const h = /(\d+)h/.exec(etaStr)?.[1]
+  const m = /(\d+)m/.exec(etaStr)?.[1]
+  const s = /(\d+)s/.exec(etaStr)?.[1]
+  if (h) seconds += Number.parseInt(h, 10) * 3600
+  if (m) seconds += Number.parseInt(m, 10) * 60
+  if (s) seconds += Number.parseInt(s, 10)
+  return seconds > 0 ? seconds : undefined
 }
 
 function cleanErrorOutput(stderr: string): string {

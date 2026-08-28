@@ -284,8 +284,14 @@ function AppContent({
   )
 
   useEffect(() => {
+    void findAria2c().then(path => {
+      aria2cPathRef.current = path
+    })
+    void findFfmpeg().then(path => {
+      ffmpegRef.current = path
+    })
     if (initialUrl) void startProbe(initialUrl)
-  }, [])
+  }, [initialUrl, startProbe])
 
   useInput((input, key) => {
     if (key.ctrl && input === 'c') {
@@ -512,11 +518,13 @@ function AppContent({
                       <CrustBar percent={stage.progress.downloadedBytes / stage.progress.totalBytes} width={Math.min(40, panelWidth - 10)} />
                       <Text dimColor={palette.dimAccent}>
                         {progressMeta(stage.progress)}
+                        {config.aria2c && aria2cPathRef.current ? `  · aria2c (${config.connections})` : ''}
                       </Text>
                     </>
                   ) : (
                     <Text dimColor={palette.dimAccent}>
                       {indeterminateMeta(stage.progress)}
+                      {config.aria2c && aria2cPathRef.current ? `  · aria2c (${config.connections})` : ''}
                     </Text>
                   )}
                 </>
@@ -526,8 +534,7 @@ function AppContent({
                     <Spinner type="dots" />
                   </Text>
                   <Text dimColor={palette.dimAccent}>
-                    {' '}
-                    downloading…
+                    {` downloading…${config.aria2c && aria2cPathRef.current ? ` · aria2c (${config.connections})` : ''}`}
                   </Text>
                 </Box>
               )}
