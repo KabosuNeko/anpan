@@ -13,6 +13,7 @@ type SettingsViewProps = {
   config: AnpanConfig
   onChange: (updated: AnpanConfig) => void
   onClose: () => void
+  bare?: boolean
 }
 
 type SettingKey = 'aria2c' | 'connections' | 'preferQuality' | 'outDir'
@@ -34,7 +35,7 @@ const DIR_PRESETS = [
   process.cwd(),
 ]
 
-export function SettingsView({width, config, onChange, onClose}: SettingsViewProps) {
+export function SettingsView({width, config, onChange, onClose, bare = false}: SettingsViewProps) {
   const palette = useAnpanTheme()
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [editingDir, setEditingDir] = useState(false)
@@ -133,39 +134,40 @@ export function SettingsView({width, config, onChange, onClose}: SettingsViewPro
     return ''
   }
 
-  return (
-    <BunCard title="settings" width={width}>
-      <Box flexDirection="column" gap={0}>
-        {ITEMS.map((item, index) => {
-          const isSelected = index === selectedIndex
-          const isCurrentEditing = isSelected && editingDir
+  const content = (
+    <Box flexDirection="column" gap={0}>
+      {ITEMS.map((item, index) => {
+        const isSelected = index === selectedIndex
+        const isCurrentEditing = isSelected && editingDir
 
-          return (
-            <Box key={item.key} justifyContent="space-between" width="100%">
-              <Text>
-                <Text dimColor={palette.dimAccent}>{isSelected ? '> ' : '  '}</Text>
-                <Text bold={isSelected}>{item.label}</Text>
+        return (
+          <Box key={item.key} justifyContent="space-between" width="100%">
+            <Text>
+              <Text dimColor={palette.dimAccent}>{isSelected ? '> ' : '  '}</Text>
+              <Text bold={isSelected}>{item.label}</Text>
+            </Text>
+            {isCurrentEditing ? (
+              <Box width={26} height={1}>
+                <Text dimColor={palette.dimAccent}>{'[ '}</Text>
+                <KeyField
+                  value={dirInput}
+                  onChange={setDirInput}
+                  onSubmit={saveCustomDir}
+                  width={22}
+                />
+                <Text dimColor={palette.dimAccent}>{' ]'}</Text>
+              </Box>
+            ) : (
+              <Text bold={isSelected} dimColor={!isSelected && palette.dimAccent}>
+                {`[ ${formatVal(item.key)} ]`}
               </Text>
-              {isCurrentEditing ? (
-                <Box width={26} height={1}>
-                  <Text dimColor={palette.dimAccent}>{'[ '}</Text>
-                  <KeyField
-                    value={dirInput}
-                    onChange={setDirInput}
-                    onSubmit={saveCustomDir}
-                    width={22}
-                  />
-                  <Text dimColor={palette.dimAccent}>{' ]'}</Text>
-                </Box>
-              ) : (
-                <Text bold={isSelected} dimColor={!isSelected && palette.dimAccent}>
-                  {`[ ${formatVal(item.key)} ]`}
-                </Text>
-              )}
-            </Box>
-          )
-        })}
-      </Box>
-    </BunCard>
+            )}
+          </Box>
+        )
+      })}
+    </Box>
   )
+
+  if (bare) return content
+  return <BunCard title="settings" width={width}>{content}</BunCard>
 }
