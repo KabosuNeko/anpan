@@ -19,7 +19,7 @@ const HELP = `
   Examples
     $ anpan https://youtu.be/dQw4w9WgXcQ
     $ anpan "magnet:?xt=urn:btih:..."
-    $ anpan https://example.com/archlinux.iso
+    $ anpan https://example.com/nixos-minimal.iso
     $ anpan                 (prompts for input)
 
   Options
