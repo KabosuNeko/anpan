@@ -73,7 +73,6 @@ export async function inspectTarget(
 ): Promise<TargetInspection> {
   const trimmed = rawInput.trim()
 
-  // 1. BitTorrent & Magnet
   if (trimmed.startsWith('magnet:?')) {
     return {
       type: 'torrent',
@@ -90,10 +89,8 @@ export async function inspectTarget(
     }
   }
 
-  // 2. Video / Streaming URL with optional trimming
   const {cleanUrl, timeRange, timeLabel} = parseUrlInput(trimmed)
 
-  // If time range is specified or domain belongs to a known media site, route to video engine
   const site = identifySite(cleanUrl)
   if (timeRange || site.key !== 'generic') {
     return {
@@ -104,7 +101,6 @@ export async function inspectTarget(
     }
   }
 
-  // 3. Check for common direct download file extensions
   let pathname = ''
   try {
     pathname = new URL(cleanUrl).pathname.toLowerCase()
@@ -122,7 +118,8 @@ export async function inspectTarget(
     }
   }
 
-  // 4. Fast HEAD request for direct attachments / binary streams
+  // Ambiguous URL: fast HEAD to check Content-Disposition / binary Content-Type.
+  // Falls back to video engine on timeout or HTML response.
   try {
     const headSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(1500)]) : AbortSignal.timeout(1500)
     const resp = await fetch(cleanUrl, {method: 'HEAD', signal: headSignal})
@@ -152,7 +149,7 @@ export async function inspectTarget(
       }
     }
   } catch {
-    // network timeout or HEAD not allowed — fall through to video engine
+    // network timeout or HEAD not allowed
   }
 
   return {

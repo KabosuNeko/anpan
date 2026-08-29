@@ -38,7 +38,7 @@ const DONE_LABEL = '↵ download another'
 const TAGLINE = 'feed a link, bake a file.'
 const SUPPORTED_HINT = 'youtube · x · instagram · soundcloud · torrent · and more'
 
-const portionLabel = (p: Portion) => p.label
+
 
 function PortionIndicator({isSelected}: IndicatorProps) {
   const palette = useAnpanTheme()
@@ -210,28 +210,25 @@ function AppContent({
     abortRef.current = null
   }, [])
 
+  const resetToInput = useCallback(() => {
+    setUrl('')
+    setMeta(null)
+    setPortions([])
+    setPlatform(null)
+    setCachedJsonPath(undefined)
+    setTimeRange(undefined)
+    setTimeLabel(undefined)
+    setIsPlaylistMode(false)
+    setPlaylistMeta(null)
+    setStage({name: 'input'})
+  }, [])
+
   const handleUrlChange = useCallback((newUrl: string) => {
     setUrl(newUrl)
     if (!newUrl.trim()) {
-      setMeta(null)
-      setPortions([])
-      setPlatform(null)
-      setCachedJsonPath(undefined)
-      setTimeRange(undefined)
-      setTimeLabel(undefined)
-      setIsPlaylistMode(false)
-      setPlaylistMeta(null)
-      if (
-        stage.name === 'selecting' ||
-        stage.name === 'error' ||
-        stage.name === 'playlist_prompt' ||
-        stage.name === 'direct_prompt' ||
-        stage.name === 'torrent_prompt'
-      ) {
-        setStage({name: 'input'})
-      }
+      resetToInput()
     }
-  }, [stage.name])
+  }, [resetToInput])
 
   const startBake = useCallback(
     async (portion: Portion) => {
@@ -492,32 +489,14 @@ function AppContent({
         stage.name === 'direct_prompt' ||
         stage.name === 'torrent_prompt'
       ) {
-        setUrl('')
-        setMeta(null)
-        setPortions([])
-        setPlatform(null)
-        setCachedJsonPath(undefined)
-        setTimeRange(undefined)
-        setTimeLabel(undefined)
-        setIsPlaylistMode(false)
-        setPlaylistMeta(null)
-        setStage({name: 'input'})
+        resetToInput()
       }
     }
     if (key.return && stage.name === 'error') {
       setStage({name: 'input'})
     }
     if (key.return && stage.name === 'baked') {
-      setUrl('')
-      setMeta(null)
-      setPortions([])
-      setPlatform(null)
-      setCachedJsonPath(undefined)
-      setTimeRange(undefined)
-      setTimeLabel(undefined)
-      setIsPlaylistMode(false)
-      setPlaylistMeta(null)
-      setStage({name: 'input'})
+      resetToInput()
     }
   })
 
@@ -542,13 +521,7 @@ function AppContent({
           action: () => {
             cancel()
             setShowSettings(false)
-            setUrl('')
-            setMeta(null)
-            setTimeRange(undefined)
-            setTimeLabel(undefined)
-            setIsPlaylistMode(false)
-            setPlaylistMeta(null)
-            setStage({name: 'input'})
+            resetToInput()
           },
         })
       }
@@ -567,15 +540,7 @@ function AppContent({
     if (stage.name === 'baked') {
       targets.push({
         match: DONE_LABEL,
-        action: () => {
-          setUrl('')
-          setMeta(null)
-          setTimeRange(undefined)
-          setTimeLabel(undefined)
-          setIsPlaylistMode(false)
-          setPlaylistMeta(null)
-          setStage({name: 'input'})
-        },
+        action: resetToInput,
       })
     }
 
@@ -784,7 +749,7 @@ function AppContent({
               <Gap />
               <BunCard title={isPlaylistMode ? 'playlist format' : 'format'} width={panelWidth}>
                 <SelectInput
-                  items={portions.map(p => ({label: portionLabel(p), value: p}))}
+                  items={portions.map(p => ({label: p.label, value: p}))}
                   onSelect={item => void startBake(item.value)}
                   indicatorComponent={PortionIndicator}
                   itemComponent={PortionItem}

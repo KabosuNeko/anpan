@@ -42,7 +42,6 @@ export type ParsedInput = {
   timeLabel?: string
 }
 
-// Extract clean URL and optional start-end timestamp trimming (e.g. 01:20-03:45 or 45-90)
 export function parseUrlInput(input: string): ParsedInput {
   const trimmed = input.trim()
   const match = TIME_RANGE_RE.exec(trimmed)

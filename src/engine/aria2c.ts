@@ -184,7 +184,7 @@ function runAria2Process(
           resolvedFile = completeMatch[1]!.trim()
         }
 
-        // Parse result table path
+        // aria2c prints a summary row "GID|STATUS|AVG SPEED|PATH/URI" upon completion
         const tableMatch = /^[0-9a-fA-F]+\|OK\s*\|\s*[^|]+\|(.+)$/.exec(line)
         if (tableMatch) {
           resolvedFile = tableMatch[1]!.trim()

@@ -1,7 +1,7 @@
 {
   "name": "anpan",
   "version": "0.1.0",
-  "description": "freshly baked video downloader for your terminal 🥐",
+  "description": "feed a link, bake a file — terminal downloader 🥐",
   "type": "module",
   "bin": {
     "anpan": "dist/entry.js"

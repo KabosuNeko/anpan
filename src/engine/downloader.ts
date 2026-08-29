@@ -189,7 +189,6 @@ function parseNumber(value: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-
 function cleanErrorOutput(stderr: string): string {
   const lines = stderr
     .split('\n')
