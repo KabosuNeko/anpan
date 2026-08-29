@@ -1,4 +1,3 @@
-/** Human-readable byte size (e.g. 1024 → "1 KB"). */
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return ''
   const tiers = ['B', 'KB', 'MB', 'GB'] as const
@@ -13,7 +12,6 @@ export function formatBytes(bytes: number): string {
   return `${formatted} ${tiers[tier]}`
 }
 
-/** Seconds → "m:ss" or "h:mm:ss". */
 export function formatDuration(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return ''
   const s = Math.round(totalSeconds)
@@ -25,22 +23,19 @@ export function formatDuration(totalSeconds: number): string {
   return hrs > 0 ? `${hrs}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
-/** Bytes/second → human string like "12.4 MB/s". */
 export function formatSpeed(bytesPerSecond: number): string {
   if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return ''
   return `${formatBytes(bytesPerSecond)}/s`
 }
 
-/** Remaining seconds → duration string. */
 export function formatEta(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return ''
   return formatDuration(seconds)
 }
 
-/**
- * Calculate display width in terminal cells, correctly treating CJK/full-width
- * characters as 2 cells wide.
- */
+// POSIX terminal emulators allocate 2 monospace grid columns for CJK ideographs,
+// full-width punctuation, and kana. String.length counts UTF-16 code units (1),
+// so naive truncation causes yoga/ink to miscalculate boundaries and wrap unexpectedly.
 export function strWidth(str: string): number {
   let width = 0
   for (const ch of str) {
@@ -65,7 +60,6 @@ export function strWidth(str: string): number {
   return width
 }
 
-/** Truncate to `max` terminal columns with trailing "…", CJK-aware. */
 export function truncate(text: string, max: number): string {
   if (strWidth(text) <= max) return text
   let res = ''
@@ -80,7 +74,6 @@ export function truncate(text: string, max: number): string {
   return `${res}…`
 }
 
-/** Replace $HOME prefix with ~ and optionally truncate. */
 export function shortenPath(filepath: string, homedir: string, max = 60): string {
   const pretty = filepath.startsWith(homedir) ? `~${filepath.slice(homedir.length)}` : filepath
   if (pretty.length <= max) return pretty
@@ -88,18 +81,15 @@ export function shortenPath(filepath: string, homedir: string, max = 60): string
   return `${pretty.slice(0, max - ext.length - 1)}…${ext}`
 }
 
-/**
- * Word-wrap text into left-flush lines of at most `width` columns.
- * Unlike ink's built-in wrapping, break points don't leave leading spaces
- * on continuation lines.
- */
+// Word-wrap text into left-flush lines of at most `width` columns.
+// Uses strWidth so lines containing East Asian characters don't overflow the panel.
 export function wrapText(text: string, width: number): string[] {
   const lines: string[] = []
   let current = ''
   for (const word of text.split(/\s+/).filter(Boolean)) {
     if (!current) {
       current = word
-    } else if (current.length + 1 + word.length <= width) {
+    } else if (strWidth(current) + 1 + strWidth(word) <= width) {
       current += ` ${word}`
     } else {
       lines.push(current)

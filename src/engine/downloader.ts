@@ -3,8 +3,6 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type {Portion} from './extractor.js'
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export type BakeProgress = {
   downloadedBytes: number
   totalBytes?: number
@@ -19,16 +17,11 @@ export type BakeHandlers = {
   onProcessing: () => void
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const PROGRESS_TAG = 'ANPAN|'
 const PROGRESS_TEMPLATE = `${PROGRESS_TAG}%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s`
 
-// Ensure the child process is cleaned up on exit
 let activeChild: ChildProcess | undefined
 process.on('exit', () => activeChild?.kill('SIGTERM'))
-
-// ── Download ─────────────────────────────────────────────────────────────────
 
 export function bakeVideo(
   opts: {
@@ -53,6 +46,8 @@ export function bakeVideo(
     '--progress',
     '--progress-template',
     `download:${PROGRESS_TEMPLATE}`,
+    // --print after_move:filepath writes the resolved final file destination
+    // after container merging and postprocessing completes.
     '--print',
     'after_move:filepath',
     '--no-simulate',
@@ -83,6 +78,7 @@ export function bakeVideo(
         const line = rawLine.trim()
         if (!line) continue
 
+        // Native yt-dlp progress template
         if (line.startsWith(PROGRESS_TAG)) {
           const [downloaded, total, totalEstimate, speed, eta] = line
             .slice(PROGRESS_TAG.length)
@@ -99,6 +95,9 @@ export function bakeVideo(
             totalParts,
           })
         } else {
+          // When delegating to aria2c, yt-dlp yields stdout/stderr to aria2c which logs:
+          //   [#7156da 8.6MiB/11MiB(76%) CN:9 DL:9.4MiB ETA:1s]
+          // We intercept this so the TUI progress bar and speed indicators remain responsive.
           const ariaMatch =
             /^\[#[0-9a-fA-F]+\s+([^\/]+)\/([^(]+)\((\d+)%\)\s+CN:(\d+)\s+DL:([^ \]]+)(?:\s+ETA:([^ \]]+))?\]/.exec(
               line,
@@ -126,6 +125,7 @@ export function bakeVideo(
             })
           }
         }
+
         if (line.includes('Downloading 1 format(s):')) {
           totalParts = (line.split('format(s):')[1] ?? '').trim().split('+').length
         } else if (line.includes('[Merger]') || line.includes('[ExtractAudio]')) {
@@ -159,8 +159,6 @@ export function bakeVideo(
     })
   })
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function removePartials(destinations: string[]): Promise<unknown> {
   return Promise.allSettled(

@@ -47,7 +47,6 @@ if (args.version) {
 const initialUrl = args.initialUrl
 const isTTY = Boolean(process.stdout.isTTY)
 
-// clipboard suggestion when no url is given
 let clipboardUrl: string | undefined
 if (!initialUrl && isTTY) {
   const clipped = readClipboard().trim()
@@ -55,6 +54,9 @@ if (!initialUrl && isTTY) {
 }
 
 const enterAltScreen = () => process.stdout.write('\x1b[?1049h\x1b[H')
+
+// Always disable SGR mouse tracking (1000/1006) before leaving the alternate screen buffer;
+// otherwise an unhandled exit leaves the host terminal spewing raw escape codes on mouse movement.
 const leaveAltScreen = () => process.stdout.write('\x1b[?1006l\x1b[?1000l\x1b[?1049l')
 
 if (isTTY) {

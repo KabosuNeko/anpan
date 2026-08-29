@@ -16,10 +16,8 @@ const ART = [
 const GRID = ART.map(line => [...line])
 const ROWS = GRID.length
 
-// intro: each glyph flickers in as . → : → resolved
 const INTRO_MS = 800
 const INTRO_SPREAD_MS = 450
-// shimmer: a tilted beam crosses the glyphs
 const SWEEP_MS = 1000
 const SWEEP_EVERY_MS = 7_000
 const TILT = 1.5
@@ -38,7 +36,7 @@ function cellAt(ch: string, row: number, col: number, phase: AnimPhase, t: numbe
     if (dt < 200) return {ch: ':', color: palette.muted, dim: palette.dimAccent}
     return {ch, color: palette.primary, dim: false}
   }
-  // shimmer sweep
+
   const cols = GRID[0]!.length
   const pMin = -TILT * ROWS - HALF
   const pMax = cols + HALF

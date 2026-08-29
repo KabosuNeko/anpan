@@ -4,8 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import {formatBytes} from '../core/units.js'
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export type VideoMeta = {
   title: string
   uploader?: string
@@ -30,7 +28,6 @@ type RawStream = {
 
 export type ProbeResult = {
   meta: VideoMeta
-  /** Path to the raw -J output cached on disk so downloads skip re-extraction. */
   cachedJsonPath: string
 }
 
@@ -40,9 +37,6 @@ export type Portion = {
   ytdlpArgs: string[]
 }
 
-// ── Probe ────────────────────────────────────────────────────────────────────
-
-/** Extract video metadata by running yt-dlp -J. */
 export async function probeVideo(
   ytdlpBin: string,
   url: string,
@@ -71,28 +65,25 @@ export async function probeVideo(
     throw new Error('Could not parse video info from yt-dlp.')
   }
 
+  // Dump full -J JSON to a temp file so bakeVideo can invoke --load-info-json.
+  // Re-extracting from YouTube/X on download start costs 2-4 seconds of redundant network latency.
   const cachedJsonPath = path.join(os.tmpdir(), `anpan-meta-${process.pid}-${Date.now()}.json`)
   await fs.writeFile(cachedJsonPath, stdout)
   return {meta, cachedJsonPath}
 }
 
-// ── Format Selection ─────────────────────────────────────────────────────────
-
 const MAX_VIDEO_TIERS = 8
 
-/** Build a list of download options from the probed metadata. */
 export function extractPortions(meta: VideoMeta): Portion[] {
   const streams = meta.formats ?? []
   const portions: Portion[] = []
 
-  // find best audio stream for size estimation
   const audioStreams = streams.filter(
     s => s.acodec && s.acodec !== 'none' && (!s.vcodec || s.vcodec === 'none'),
   )
   const bestAudio = [...audioStreams].sort((a, b) => (b.abr ?? b.tbr ?? 0) - (a.abr ?? a.tbr ?? 0))[0]
   const audioSize = bestAudio?.filesize ?? bestAudio?.filesize_approx
 
-  // video tiers grouped by height
   const videoStreams = streams.filter(s => s.vcodec && s.vcodec !== 'none' && s.height)
   const heights = [...new Set(videoStreams.map(s => s.height as number))].sort((a, b) => b - a)
 
@@ -100,6 +91,9 @@ export function extractPortions(meta: VideoMeta): Portion[] {
     const candidates = videoStreams.filter(s => s.height === height)
     const best = [...candidates].sort((a, b) => scoreStream(b) - scoreStream(a))[0]!
     const isMuxed = best.acodec !== undefined && best.acodec !== 'none'
+
+    // Adaptive DASH/HLS streams rarely provide 'filesize' in metadata.
+    // Fall back to estimating bytes from total bitrate (tbr in kbps) and duration.
     let videoBytes = best.filesize ?? best.filesize_approx
     if (!videoBytes && best.tbr && meta.duration) {
       videoBytes = Math.round(((best.tbr * 1000) / 8) * meta.duration)
@@ -119,7 +113,6 @@ export function extractPortions(meta: VideoMeta): Portion[] {
     })
   }
 
-  // fallback when no resolution info is available
   if (portions.length === 0) {
     portions.push({
       kind: 'video',
@@ -128,7 +121,6 @@ export function extractPortions(meta: VideoMeta): Portion[] {
     })
   }
 
-  // audio-only mp3
   const audioSizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
   portions.push({
     kind: 'audio',
@@ -145,8 +137,6 @@ function scoreStream(s: RawStream): number {
   if (s.vcodec?.startsWith('avc')) score += 5_000
   return score
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function cleanErrorOutput(stderr: string): string {
   const lines = stderr

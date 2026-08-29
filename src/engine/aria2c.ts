@@ -1,6 +1,5 @@
 import {spawn} from 'node:child_process'
 
-/** Detect aria2c on the system PATH. Returns 'aria2c' if found, undefined otherwise. */
 export async function findAria2c(): Promise<string | undefined> {
   return new Promise(resolve => {
     let child
@@ -15,7 +14,11 @@ export async function findAria2c(): Promise<string | undefined> {
   })
 }
 
-/** Build yt-dlp flags to use aria2c with configurable connection count. */
+// Build yt-dlp arguments to delegate socket downloading to aria2c.
+// -x: max connections per server
+// -s: split file into N segments across connections
+// -k 1M: minimum split size to avoid pointless chunk overhead on small transfers
+// -j: max concurrent downloads
 export function buildAria2cArgs(aria2cPath: string | undefined, connections = 16): string[] {
   if (!aria2cPath) return []
   const c = Math.max(1, Math.min(32, connections))

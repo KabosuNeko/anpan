@@ -29,8 +29,6 @@ import {ensureYtDlpBinary} from '../engine/binary.js'
 import {findFfmpeg} from '../engine/ffmpeg.js'
 import {findAria2c, buildAria2cArgs} from '../engine/aria2c.js'
 
-export type {BakeProgress}
-
 const BAKE_BUTTON = 'bake'
 const DONE_LABEL = '↵ download another'
 const TAGLINE = 'minimal terminal video downloader'
@@ -54,6 +52,7 @@ function PortionItem({isSelected, label}: ItemProps) {
   )
 }
 
+// Fixed-height spacer preventing Yoga flex shrinkage
 const Gap = ({lines = 1}: {lines?: number}) => (
   <Box flexDirection="column" flexShrink={0}>
     {Array.from({length: lines}, (_, i) => (
@@ -258,7 +257,6 @@ function AppContent({
         setPortions(resolvedPortions)
         setHistory(addToHistory(targetUrl))
 
-        // auto-select if configured
         if (config.preferQuality === 'best' && resolvedPortions[0]) {
           void startBake(resolvedPortions[0])
         } else if (config.preferQuality === 'audio') {
@@ -306,7 +304,6 @@ function AppContent({
     }
 
     if (showSettings) {
-      // handled by SettingsView
       return
     }
 
@@ -335,7 +332,6 @@ function AppContent({
     }
   })
 
-  // mouse clicks
   const clickTargets = useRef<TapTarget[]>([])
   usePointer(
     (x, y) => {
@@ -405,7 +401,6 @@ function AppContent({
       </Text>
       <Gap />
 
-      {/* ── Settings View ─────────────────────────────────────── */}
       {showSettings ? (
         <>
           <SettingsView
@@ -422,7 +417,6 @@ function AppContent({
         </>
       ) : (
         <>
-          {/* ── Input Stage ───────────────────────────────────── */}
           {stage.name === 'input' && (
             <>
               <TrayInput
@@ -454,7 +448,6 @@ function AppContent({
             </>
           )}
 
-          {/* ── Probing Stage ─────────────────────────────────── */}
           {stage.name === 'probing' && (
             <Box>
               <Text>
@@ -467,7 +460,6 @@ function AppContent({
             </Box>
           )}
 
-          {/* ── Selecting Stage ───────────────────────────────── */}
           {stage.name === 'selecting' && meta && (
             <>
               <Box flexDirection="column" alignItems="center" width={panelWidth}>
@@ -492,7 +484,6 @@ function AppContent({
             </>
           )}
 
-          {/* ── Baking / Downloading Stage ────────────────────── */}
           {stage.name === 'baking' && (
             <>
               {meta && (
@@ -541,7 +532,6 @@ function AppContent({
             </>
           )}
 
-          {/* ── Baked / Completed Stage ───────────────────────── */}
           {stage.name === 'baked' && (
             <>
               <Text bold>
@@ -555,7 +545,6 @@ function AppContent({
             </>
           )}
 
-          {/* ── Error Stage ───────────────────────────────────── */}
           {stage.name === 'error' && (
             <>
               <Text color="red" bold>

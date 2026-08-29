@@ -15,7 +15,8 @@ function ytDlpAssetName(): string {
   return process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'
 }
 
-/** Async check whether a binary responds to the given args. */
+// Probing must be asynchronous: a synchronous spawnSync here blocks Node's event loop,
+// which freezes Ink mid-render and causes keystroke lag.
 export function binaryResponds(cmd: string, args: string[]): Promise<boolean> {
   return new Promise(resolve => {
     let child: ChildProcess
@@ -30,24 +31,17 @@ export function binaryResponds(cmd: string, args: string[]): Promise<boolean> {
   })
 }
 
-/**
- * Resolve a usable yt-dlp binary: system PATH first, then a previously
- * cached copy under ~/.anpan/bin, then download the standalone binary
- * from GitHub releases.
- */
+// Resolves a usable yt-dlp executable: PATH -> ~/.anpan/bin cache -> GitHub release download.
 export async function ensureYtDlpBinary(
   onStatus: (message: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  // system install
   if (await binaryResponds('yt-dlp', ['--version'])) return 'yt-dlp'
 
-  // previously cached
   const localBin = path.join(ANPAN_BIN_DIR, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
   if (await binaryResponds(localBin, ['--version'])) return localBin
 
-  // download
-  onStatus('preheating oven tools (yt-dlp)…')
+  onStatus('fetching yt-dlp binary…')
   await fs.mkdir(ANPAN_BIN_DIR, {recursive: true})
 
   const url = `${RELEASE_BASE}/${ytDlpAssetName()}`

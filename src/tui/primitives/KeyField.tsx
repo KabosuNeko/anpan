@@ -8,13 +8,9 @@ type KeyFieldProps = {
   onChange: (value: string) => void
   onSubmit?: (value: string) => void
   placeholder?: string
-  /** Visible columns — text scrolls horizontally to keep the cursor in view. */
   width?: number
-  /** Newest-first entries recalled with ↑/↓. */
   history?: string[]
-  /** When a paste into an empty field satisfies this, submit immediately. */
   submitOnPaste?: (value: string) => boolean
-  /** Tab pressed — accept a suggestion, etc. */
   onTab?: () => void
 }
 
@@ -49,7 +45,6 @@ export function KeyField({
   const draftRef = useRef('')
   const offsetRef = useRef(0)
 
-  // clamp if parent resets value
   const cursor = Math.min(cursorState, value.length)
   const anchor = anchorState === null ? null : Math.min(anchorState, value.length)
 
@@ -70,23 +65,19 @@ export function KeyField({
   }
 
   useInput((input, key) => {
-    // tab
     if (key.tab) {
       onTab?.()
       return
     }
-    // submit
     if (key.return) {
       onSubmit?.(value)
       return
     }
-    // escape — clear
     if (key.escape) {
       if (value) update('', 0)
       return
     }
 
-    // history navigation
     if (key.upArrow && !key.shift && !key.meta) {
       if (history.length === 0) return
       const nextPos = historyPos === null ? 0 : Math.min(historyPos + 1, history.length - 1)
@@ -116,7 +107,6 @@ export function KeyField({
       return
     }
 
-    // movement
     if (key.leftArrow) {
       const to = key.meta ? wordLeft(value, cursor) : cursor - 1
       if (to >= 0) {
@@ -144,7 +134,7 @@ export function KeyField({
       return
     }
 
-    // ctrl keys
+    // Readline / Emacs shortcuts
     if (key.ctrl) {
       if (input === 'a') {setCursorState(0); setAnchorState(null); return}
       if (input === 'e') {setCursorState(value.length); setAnchorState(null); return}
@@ -162,7 +152,6 @@ export function KeyField({
       }
     }
 
-    // backspace
     if (key.backspace || key.delete) {
       if (hasSelection) {deleteSelection(); return}
       if (key.backspace && cursor > 0) {
@@ -178,7 +167,6 @@ export function KeyField({
       return
     }
 
-    // printable input
     if (input && !key.ctrl && !key.meta) {
       const cleaned = stripPointerReports(input)
       if (!cleaned) return
@@ -193,7 +181,8 @@ export function KeyField({
         newCur = cursor + cleaned.length
       }
 
-      // paste detection
+      // Fast-path: if pasting a valid URL into an empty field in one chunk,
+      // trigger immediate submit so the user doesn't have to hit Enter.
       if (cleaned.length > 1 && value === '' && submitOnPaste?.(next)) {
         onChange(next)
         setCursorState(newCur)
@@ -206,12 +195,11 @@ export function KeyField({
     }
   })
 
-  // horizontal scroll
+  // Keep cursor visible inside the viewport window
   if (cursor < offsetRef.current) offsetRef.current = cursor
   if (cursor > offsetRef.current + width - 1) offsetRef.current = cursor - width + 1
   const offset = offsetRef.current
 
-  // render visible window
   const visible = value.slice(offset, offset + width) || placeholder.slice(0, width)
   const isPlaceholder = !value
   const cursorInView = cursor - offset
