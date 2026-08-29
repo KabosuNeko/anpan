@@ -12,6 +12,11 @@
                'xc:::::::::::d; 
   </pre>
 </p>
+<p align="center">
+  <a href="https://github.com/KabosuNeko/anpan/actions/workflows/ci.yml"><img src="https://github.com/KabosuNeko/anpan/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/KabosuNeko/anpan/actions/workflows/codeql.yml"><img src="https://github.com/KabosuNeko/anpan/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
+</p>
 <p><br/></p>
 
 **A terminal downloader that doesn't suck.**
