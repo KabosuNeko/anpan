@@ -9,7 +9,7 @@ import {FooterKeys} from './primitives/FooterKeys.js'
 import {KeyField} from './primitives/KeyField.js'
 import {StageViewport} from './primitives/StageViewport.js'
 import {TrayInput} from './primitives/TrayInput.js'
-import {AnpanMascot} from './mascot/AnpanMascot.js'
+import {AnpanMascot, MASCOT_MATCH} from './mascot/AnpanMascot.js'
 import {SettingsView} from './settings/SettingsView.js'
 import {tapTargetAt, locateFrameRow, frameRowBounds, type TapTarget} from './events/hitTest.js'
 import {usePointer} from './events/usePointer.js'
@@ -347,13 +347,13 @@ function AppContent({
 
   useEffect(() => {
     const targets: TapTarget[] = []
-    const mascotRow = locateFrameRow('█▀█')
+    const mascotRow = locateFrameRow(MASCOT_MATCH)
     if (mascotRow !== -1) {
       const bounds = frameRowBounds(mascotRow)
       if (bounds) {
         targets.push({
-          match: '█▀█',
-          padY: 2,
+          match: MASCOT_MATCH,
+          padY: 6,
           action: () => {
             cancel()
             setShowSettings(false)

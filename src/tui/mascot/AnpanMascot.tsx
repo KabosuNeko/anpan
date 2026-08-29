@@ -2,24 +2,28 @@ import React, {useEffect, useMemo, useState} from 'react'
 import {Box, Text} from 'ink'
 import {type Palette, useAnpanTheme} from '../theme/palette.js'
 
+export const MASCOT_MATCH = 'cdxkkx'
+
 const ART = [
-  '█▀█ █▀▄█ █▀█ █▀█ █▀▄█',
-  '█▀█ █  █ █▀▀ █▀█ █  █',
-  '▀ ▀ ▀  ▀ ▀   ▀ ▀ ▀  ▀',
+  '     .,cdxkkxoc,.             ',
+  "  'cdkdxxdkkdxkkkd:.          ",
+  '.dkkkkdxxdkdxkxxkkkko         ',
+  'okkkkkkkkkkkkkkOKXXXXXK0Okc.  ',
+  ' dkkkkkkkkkkx0WNNK000000KXNWk ',
+  '   .kkkkkkkkOMKdc::::::::cd0Mx',
+  "             'xc:::::::::::d; ",
 ]
 const GRID = ART.map(line => [...line])
 const ROWS = GRID.length
 
-// intro: each glyph flickers in as ░ → ▒ → resolved
-const INTRO_MS = 900
-const INTRO_SPREAD_MS = 550
+// intro: each glyph flickers in as . → : → resolved
+const INTRO_MS = 800
+const INTRO_SPREAD_MS = 450
 // shimmer: a tilted beam crosses the glyphs
 const SWEEP_MS = 1000
 const SWEEP_EVERY_MS = 7_000
-const TILT = 2
-const HALF = 2.4
-const LIGHTER: Record<string, string> = {'█': '▒', '▓': '░'}
-const HALF_BLOCKS = new Set(['▀', '▄'])
+const TILT = 1.5
+const HALF = 3.0
 
 const ease = (t: number) => 1 - Math.pow(1 - t, 3)
 
@@ -30,8 +34,8 @@ function cellAt(ch: string, row: number, col: number, phase: AnimPhase, t: numbe
   if (phase === 'intro') {
     const dt = t - delay
     if (dt < 0) return {ch: ' ', color: palette.primary, dim: false}
-    if (dt < 110) return {ch: HALF_BLOCKS.has(ch) ? ch : '░', color: palette.muted, dim: palette.dimAccent}
-    if (dt < 220) return {ch: HALF_BLOCKS.has(ch) ? ch : '▒', color: palette.muted, dim: palette.dimAccent}
+    if (dt < 100) return {ch: '.', color: palette.muted, dim: palette.dimAccent}
+    if (dt < 200) return {ch: ':', color: palette.muted, dim: palette.dimAccent}
     return {ch, color: palette.primary, dim: false}
   }
   // shimmer sweep
@@ -40,9 +44,8 @@ function cellAt(ch: string, row: number, col: number, phase: AnimPhase, t: numbe
   const pMax = cols + HALF
   const p = pMin + ease(t / SWEEP_MS) * (pMax - pMin)
   const d = Math.abs(col - (ROWS - 1 - row) * TILT - p)
-  if (d <= HALF && 1 - d / HALF > 0.35) {
-    if (HALF_BLOCKS.has(ch)) return {ch, color: palette.muted, dim: palette.dimAccent}
-    return {ch: LIGHTER[ch] ?? ch, color: palette.primary, dim: false}
+  if (d <= HALF && 1 - d / HALF > 0.3) {
+    return {ch, color: palette.muted, dim: true}
   }
   return {ch, color: palette.primary, dim: false}
 }
