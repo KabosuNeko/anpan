@@ -12,6 +12,9 @@ jobs:
       contents: read
       id-token: write
 
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -32,7 +35,5 @@ jobs:
           npm run build
 
       - name: Publish to NPM
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        if: env.NODE_AUTH_TOKEN != ''
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
