@@ -1,5 +1,5 @@
 {
-  "name": "anpan",
+  "name": "anpan-cli",
   "version": "0.1.0",
   "description": "feed a link, bake a file — terminal downloader 🥐",
   "type": "module",

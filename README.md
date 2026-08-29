@@ -65,13 +65,13 @@
 ### Global Install (NPM)
 
 ```sh
-npm install -g anpan
+npm install -g anpan-cli
 ```
 
 Or run directly without installing:
 
 ```sh
-npx anpan
+npx anpan-cli
 ```
 
 ### From Source
