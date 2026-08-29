@@ -36,7 +36,7 @@ import {findAria2c, buildAria2cArgs, bakeDirectDownload, bakeTorrentDownload} fr
 const BAKE_BUTTON = 'bake'
 const DONE_LABEL = '↵ download another'
 const TAGLINE = 'feed a link, bake a file.'
-const SUPPORTED_HINT = 'youtube · x · tiktok · soundcloud · torrent · +1800 more'
+const SUPPORTED_HINT = 'youtube · x · instagram · soundcloud · torrent · and more'
 
 const portionLabel = (p: Portion) => p.label
 

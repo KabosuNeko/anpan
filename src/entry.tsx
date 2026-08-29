@@ -11,7 +11,7 @@ const VERSION: string = createRequire(import.meta.url)('../package.json').versio
 
 const HELP = `
   anpan — feed a link, bake a file.
-  (youtube · x · tiktok · soundcloud · torrent · +1800 more)
+  (youtube · x · instagram · soundcloud · torrent · and more)
 
   Usage
     $ anpan [url|magnet|file]
