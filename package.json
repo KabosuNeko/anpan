@@ -20,6 +20,14 @@
     "start": "node dist/entry.js",
     "prepublishOnly": "npm test && npm run typecheck && npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KabosuNeko/anpan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KabosuNeko/anpan/issues"
+  },
+  "homepage": "https://github.com/KabosuNeko/anpan#readme",
   "author": "",
   "keywords": [
     "video",
