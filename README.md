@@ -66,6 +66,7 @@
 
 ```sh
 npm install -g anpan-cli
+# (use sudo if required by your system permissions)
 ```
 
 Or run directly without installing:
