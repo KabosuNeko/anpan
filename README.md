@@ -96,7 +96,7 @@ npx anpan
 ### From Source
 
 ```sh
-git clone https://github.com/YOUR_USERNAME/anpan.git ~/anpan
+git clone https://github.com/KabosuNeko/anpan.git ~/anpan
 cd ~/anpan
 npm install
 npm run build
