@@ -1,46 +1,22 @@
 # anpan
 
-<p><br/></p>
-<p align="center">
-  <pre align="center">
-       .,cdxkkxoc,.             
-    'cdkdxxdkkdxkkkd:.          
-  .dkkkkdxxdkdxkxxkkkko         
-  okkkkkkkkkkkkkkOKXXXXXK0Okc.  
-   dkkkkkkkkkkx0WNNK000000KXNWk 
-     .kkkkkkkkOMKdc::::::::cd0Mx
-               'xc:::::::::::d; 
-  </pre>
-</p>
-<p align="center">
-  <a href="https://github.com/KabosuNeko/anpan/actions/workflows/ci.yml"><img src="https://github.com/KabosuNeko/anpan/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/KabosuNeko/anpan/actions/workflows/codeql.yml"><img src="https://github.com/KabosuNeko/anpan/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
-</p>
-<p><br/></p>
 
-**A terminal downloader that doesn't suck.**
+<p><br/></p>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a0bf7c2e-ce69-42d5-a6ac-12f169972c7e" alt="Anpan Logo" style="width: 192px" />
+</p>
+<p><br/></p>
 
 `anpan` is a minimal, all-in-one terminal downloader. It combines video and audio stream extraction, multi-threaded direct file acceleration, and BitTorrent P2P transfers into a single unified CLI interface. Fast, transparent, zero-config, and just works.
 
 ## Preview
 
-```text
-          feed a link, bake a file.
-youtube · x · instagram · soundcloud · torrent · and more
+<p><br/></p>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/30f832d8-96c5-45bd-8cf4-d91e2b69c8e9" alt="Anpan Preview" />
+</p>
+<p><br/></p>
 
-╭─ url / magnet / file ─────────────────────────[ bake ]─╮
-│ ❯ https://... or magnet:?...                          │
-╰────────────────────────────────────────────────────────╯
-            ↵ bake   ·   ^s settings   ·   ^c quit
-```
-
-```text
-nixos-graphical-24.11-x86_64-linux.iso
-
-████████████████░░░░░░░░░░░░░░  54%
-   2.4 MB/s  1m 15s left  · P2P (14 peers, 5 seeds)
-```
 
 ## Core Stack
 
@@ -70,7 +46,7 @@ nixos-graphical-24.11-x86_64-linux.iso
 ## How it works
 
 - **Smart Target Router**: Automatically classifies incoming links into Video streams, BitTorrent P2P transfers, or Multi-threaded Direct Downloads with zero manual flags.
-- **Standalone yt-dlp**: On first run, `anpan` downloads the standalone yt-dlp binary to `~/.anpan/bin` — no Python required. If you already have yt-dlp installed on PATH, it uses yours.
+- **Standalone yt-dlp**: On first run, `anpan` downloads the standalone yt-dlp binary to `~/.anpan/bin`. If you already have yt-dlp installed on PATH, it uses yours.
 - **aria2c Engine**: Accelerates direct downloads with up to 32 parallel connections (`-x -s -k 1M -j`) and handles BitTorrent transfers with real-time peer/seed tracking, exiting cleanly at 100%.
 - **FFmpeg Transcoder**: Merges adaptive video/audio streams and extracts audio with album artwork and ID3 tags embedded. Finds system ffmpeg or falls back to bundled `ffmpeg-static`.
 - **Terminal UI**: Built with [Ink](https://github.com/vadimdemedes/ink) (React for the terminal) on TypeScript 7, featuring full SGR mouse tracking, native terminal colors, and CJK width-aware boundary calculations.
@@ -155,7 +131,7 @@ Settings are automatically saved to `~/.config/anpan/config.json`.
 
 ## A note on fair use
 
-anpan is a personal-archiving tool. Downloading content may violate a platform's terms of service — only download what you have the right to keep, and be excellent to creators.
+anpan is for personal archives. Know your rights, respect platform rules, and treat creators well.
 
 ## License
 
