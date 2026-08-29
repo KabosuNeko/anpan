@@ -16,7 +16,7 @@
 
 **A terminal downloader that doesn't suck.**
 
-`anpan` is a minimal, all-in-one terminal downloader for Linux, macOS, and Windows. It combines video and audio stream extraction, multi-threaded direct file acceleration, and BitTorrent P2P transfers into a single unified CLI interface. Fast, transparent, zero-config, and just works.
+`anpan` is a minimal, all-in-one terminal downloader. It combines video and audio stream extraction, multi-threaded direct file acceleration, and BitTorrent P2P transfers into a single unified CLI interface. Fast, transparent, zero-config, and just works.
 
 ## Preview
 
