@@ -790,13 +790,21 @@ function AppContent({
                       <CrustBar percent={stage.progress.downloadedBytes / stage.progress.totalBytes} width={Math.min(40, panelWidth - 10)} />
                       <Text dimColor={palette.dimAccent}>
                         {progressMeta(stage.progress)}
-                        {config.aria2c && aria2cPathRef.current ? `  · aria2c (${config.connections})` : ''}
+                        {stage.progress.seeders !== undefined
+                          ? `  · P2P (${stage.progress.connections} peers, ${stage.progress.seeders} seeds)`
+                          : config.aria2c && aria2cPathRef.current
+                            ? `  · aria2c (${config.connections})`
+                            : ''}
                       </Text>
                     </>
                   ) : (
                     <Text dimColor={palette.dimAccent}>
                       {indeterminateMeta(stage.progress)}
-                      {config.aria2c && aria2cPathRef.current ? `  · aria2c (${config.connections})` : ''}
+                      {stage.progress.seeders !== undefined
+                        ? `  · P2P (${stage.progress.connections} peers, ${stage.progress.seeders} seeds)`
+                        : config.aria2c && aria2cPathRef.current
+                          ? `  · aria2c (${config.connections})`
+                          : ''}
                     </Text>
                   )}
                 </>
@@ -806,7 +814,7 @@ function AppContent({
                     <Spinner type="dots" />
                   </Text>
                   <Text dimColor={palette.dimAccent}>
-                    {` downloading…${config.aria2c && aria2cPathRef.current ? ` · aria2c (${config.connections})` : ''}`}
+                    {' downloading…'}
                   </Text>
                 </Box>
               )}

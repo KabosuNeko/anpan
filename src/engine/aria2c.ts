@@ -33,6 +33,7 @@ export type AriaProgress = {
   speed: number
   eta?: number
   connections: number
+  seeders?: number
 }
 
 export function parseUnitBytes(str: string): number {
@@ -58,19 +59,25 @@ export function parseAriaEta(etaStr: string): number | undefined {
 }
 
 export function parseAriaProgressLine(line: string): AriaProgress | null {
-  const ariaMatch =
-    /^\[#[0-9a-fA-F]+\s+([^\/]+)\/([^(]+)\((\d+)%\)\s+CN:(\d+)\s+DL:([^ \]]+)(?:\s+ETA:([^ \]]+))?\]/.exec(
-      line,
-    )
-  if (!ariaMatch) return null
+  const headerMatch = /^\[#[0-9a-fA-F]+\s+([0-9.]+[A-Za-z]*)\/([0-9.]+[A-Za-z]*)(?:\((\d+)%\))?/.exec(line)
+  if (!headerMatch) return null
 
-  const downloadedBytes = parseUnitBytes(ariaMatch[1]!)
-  const totalBytes = parseUnitBytes(ariaMatch[2]!)
-  const connections = Number.parseInt(ariaMatch[4]!, 10)
-  const speed = parseUnitBytes(ariaMatch[5]!)
+  const downloadedBytes = parseUnitBytes(headerMatch[1]!)
+  const totalBytes = parseUnitBytes(headerMatch[2]!)
+
+  const cnMatch = /\bCN:(\d+)/.exec(line)
+  const connections = cnMatch ? Number.parseInt(cnMatch[1]!, 10) : 1
+
+  const sdMatch = /\bSD:(\d+)/.exec(line)
+  const seeders = sdMatch ? Number.parseInt(sdMatch[1]!, 10) : undefined
+
+  const dlMatch = /\bDL:([0-9.]+[A-Za-z]*)/.exec(line)
+  const speed = dlMatch ? parseUnitBytes(dlMatch[1]!) : 0
+
+  const etaMatch = /\bETA:([0-9a-zA-Z]+)/.exec(line)
   let etaSeconds: number | undefined
-  if (ariaMatch[6]) {
-    etaSeconds = parseAriaEta(ariaMatch[6])
+  if (etaMatch) {
+    etaSeconds = parseAriaEta(etaMatch[1]!)
   } else if (speed > 0 && totalBytes > downloadedBytes) {
     etaSeconds = Math.round((totalBytes - downloadedBytes) / speed)
   }
@@ -79,6 +86,7 @@ export function parseAriaProgressLine(line: string): AriaProgress | null {
     downloadedBytes,
     totalBytes: totalBytes > 0 ? totalBytes : undefined,
     connections,
+    seeders,
     speed,
     eta: etaSeconds,
   }
@@ -176,6 +184,8 @@ function runAria2Process(
             eta: aria.eta,
             part: 0,
             totalParts: 1,
+            connections: aria.connections,
+            seeders: aria.seeders,
           })
         }
 

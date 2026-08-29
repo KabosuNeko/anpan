@@ -13,6 +13,8 @@ export type BakeProgress = {
   totalParts: number
   playlistItem?: number
   playlistTotal?: number
+  connections?: number
+  seeders?: number
 }
 
 export type BakeHandlers = {
@@ -137,6 +139,8 @@ export function bakeVideo(
               totalParts,
               playlistItem,
               playlistTotal,
+              connections: aria.connections,
+              seeders: aria.seeders,
             })
           }
         }
