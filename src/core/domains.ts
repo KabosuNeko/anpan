@@ -70,6 +70,13 @@ export function isLikelyUrl(input: string): boolean {
   }
 }
 
+export function isLikelyTarget(input: string): boolean {
+  const trimmed = input.trim()
+  if (trimmed.startsWith('magnet:?')) return true
+  if (trimmed.endsWith('.torrent') || trimmed.includes('.torrent?')) return true
+  return isLikelyUrl(trimmed)
+}
+
 export function isPlaylistUrl(url: string): boolean {
   try {
     const u = new URL(url)

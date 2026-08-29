@@ -5,26 +5,28 @@ import {AnpanApp, type Outcome} from './tui/AnpanApp.js'
 import {captureFrames} from './tui/events/hitTest.js'
 import {parseArgs} from './cli/options.js'
 import {readClipboard} from './system/clipboard.js'
-import {isLikelyUrl} from './core/domains.js'
+import {isLikelyTarget} from './core/domains.js'
 
 const VERSION: string = createRequire(import.meta.url)('../package.json').version
 
 const HELP = `
-  anpan — minimal terminal video downloader
+  anpan — minimal terminal downloader
 
   Usage
-    $ anpan [url]
+    $ anpan [url|magnet|file]
 
   Examples
     $ anpan https://youtu.be/dQw4w9WgXcQ
-    $ anpan                 (prompts for a url)
+    $ anpan "magnet:?xt=urn:btih:..."
+    $ anpan https://example.com/archlinux.iso
+    $ anpan                 (prompts for input)
 
   Options
     -h, --help      show this help
     -v, --version   show version
 
   Downloads are saved to ~/Downloads (configure via ^s).
-  Powered by yt-dlp.
+  Powered by yt-dlp & aria2c.
 `
 
 const args = parseArgs(process.argv.slice(2))
@@ -50,7 +52,7 @@ const isTTY = Boolean(process.stdout.isTTY)
 let clipboardUrl: string | undefined
 if (!initialUrl && isTTY) {
   const clipped = readClipboard().trim()
-  if (clipped && !/\s/.test(clipped) && isLikelyUrl(clipped)) clipboardUrl = clipped
+  if (clipped && !/\s/.test(clipped) && isLikelyTarget(clipped)) clipboardUrl = clipped
 }
 
 const enterAltScreen = () => process.stdout.write('\x1b[?1049h\x1b[H')

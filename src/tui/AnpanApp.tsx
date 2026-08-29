@@ -17,7 +17,8 @@ import {ThemeProvider, useAnpanTheme} from './theme/palette.js'
 import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate, wrapText} from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
 import {loadConfig, saveConfig, type AnpanConfig} from '../system/config.js'
-import {identifySite, isLikelyUrl, isPlaylistUrl, parseUrlInput, type SiteInfo} from '../core/domains.js'
+import {identifySite, isLikelyTarget, isPlaylistUrl, type SiteInfo} from '../core/domains.js'
+import {inspectTarget} from '../core/router.js'
 import {
   extractPlaylistPortions,
   extractPortions,
@@ -30,11 +31,11 @@ import {
 import {bakeVideo, type BakeProgress} from '../engine/downloader.js'
 import {ensureYtDlpBinary} from '../engine/binary.js'
 import {findFfmpeg} from '../engine/ffmpeg.js'
-import {findAria2c, buildAria2cArgs} from '../engine/aria2c.js'
+import {findAria2c, buildAria2cArgs, bakeDirectDownload, bakeTorrentDownload} from '../engine/aria2c.js'
 
 const BAKE_BUTTON = 'bake'
 const DONE_LABEL = '↵ download another'
-const TAGLINE = 'minimal terminal video downloader'
+const TAGLINE = 'minimal terminal downloader'
 
 const portionLabel = (p: Portion) => p.label
 
@@ -55,7 +56,6 @@ function PortionItem({isSelected, label}: ItemProps) {
   )
 }
 
-// Fixed-height spacer preventing Yoga flex shrinkage
 const Gap = ({lines = 1}: {lines?: number}) => (
   <Box flexDirection="column" flexShrink={0}>
     {Array.from({length: lines}, (_, i) => (
@@ -93,10 +93,13 @@ type Stage =
   | {name: 'input'; warning?: string}
   | {name: 'probing'; status: string}
   | {name: 'playlist_prompt'; playlist: PlaylistMeta}
+  | {name: 'direct_prompt'; filename: string; size?: number; url: string}
+  | {name: 'torrent_prompt'; title: string; target: string}
   | {name: 'selecting'}
   | {
       name: 'baking'
-      portion: Portion
+      portion?: Portion
+      targetTitle?: string
       progress?: BakeProgress
       processing: boolean
     }
@@ -116,6 +119,18 @@ const HINTS: Record<Stage['name'], Array<[string, string]>> = {
   playlist_prompt: [
     ['↑↓', 'choose'],
     ['↵', 'select'],
+    ['esc', 'cancel'],
+    ['^c', 'quit'],
+  ],
+  direct_prompt: [
+    ['↑↓', 'choose'],
+    ['↵', 'download'],
+    ['esc', 'cancel'],
+    ['^c', 'quit'],
+  ],
+  torrent_prompt: [
+    ['↑↓', 'choose'],
+    ['↵', 'download'],
     ['esc', 'cancel'],
     ['^c', 'quit'],
   ],
@@ -175,7 +190,7 @@ function AppContent({
 
   const [stage, setStage] = useState<Stage>(
     initialUrl
-      ? {name: 'probing', status: 'probing video…'}
+      ? {name: 'probing', status: 'probing target…'}
       : {name: 'input'},
   )
   const [history, setHistory] = useState(loadHistory)
@@ -205,7 +220,13 @@ function AppContent({
       setTimeLabel(undefined)
       setIsPlaylistMode(false)
       setPlaylistMeta(null)
-      if (stage.name === 'selecting' || stage.name === 'error' || stage.name === 'playlist_prompt') {
+      if (
+        stage.name === 'selecting' ||
+        stage.name === 'error' ||
+        stage.name === 'playlist_prompt' ||
+        stage.name === 'direct_prompt' ||
+        stage.name === 'torrent_prompt'
+      ) {
         setStage({name: 'input'})
       }
     }
@@ -257,6 +278,82 @@ function AppContent({
     [cancel, url, cachedJsonPath, config, timeRange, isPlaylistMode, onOutcome],
   )
 
+  const startDirectBake = useCallback(
+    async (targetUrl: string, filename: string) => {
+      cancel()
+      setStage({name: 'baking', targetTitle: filename, processing: false})
+
+      const ac = new AbortController()
+      abortRef.current = ac
+
+      try {
+        const bin = aria2cPathRef.current || (await findAria2c())
+        if (!bin) throw new Error('aria2c is required for direct multi-connection downloads.')
+
+        const filepath = await bakeDirectDownload(
+          {
+            aria2cBin: bin,
+            url: targetUrl,
+            filename,
+            outputDir: config.outDir,
+            connections: config.connections,
+          },
+          {
+            onProgress: progress =>
+              setStage(s => (s.name === 'baking' ? {...s, progress} : s)),
+          },
+          ac.signal,
+        )
+        onOutcome({filepath})
+        setStage({name: 'baked', filepath})
+      } catch (err) {
+        if (ac.signal.aborted) {
+          setStage({name: 'input'})
+        } else {
+          setStage({name: 'error', message: (err as Error).message})
+        }
+      }
+    },
+    [cancel, config.outDir, config.connections, onOutcome],
+  )
+
+  const startTorrentBake = useCallback(
+    async (target: string, name: string) => {
+      cancel()
+      setStage({name: 'baking', targetTitle: name, processing: false})
+
+      const ac = new AbortController()
+      abortRef.current = ac
+
+      try {
+        const bin = aria2cPathRef.current || (await findAria2c())
+        if (!bin) throw new Error('aria2c is required for BitTorrent transfers.')
+
+        const filepath = await bakeTorrentDownload(
+          {
+            aria2cBin: bin,
+            target,
+            outputDir: config.outDir,
+          },
+          {
+            onProgress: progress =>
+              setStage(s => (s.name === 'baking' ? {...s, progress} : s)),
+          },
+          ac.signal,
+        )
+        onOutcome({filepath})
+        setStage({name: 'baked', filepath})
+      } catch (err) {
+        if (ac.signal.aborted) {
+          setStage({name: 'input'})
+        } else {
+          setStage({name: 'error', message: (err as Error).message})
+        }
+      }
+    },
+    [cancel, config.outDir, onOutcome],
+  )
+
   const probeSingle = useCallback(
     async (targetUrl: string, bin: string, signal: AbortSignal) => {
       setStage({name: 'probing', status: 'fetching video info…'})
@@ -287,30 +384,55 @@ function AppContent({
   const startProbe = useCallback(
     async (rawInput: string) => {
       cancel()
-      const {cleanUrl, timeRange: tr, timeLabel: tl} = parseUrlInput(rawInput)
-      setUrl(cleanUrl)
-      setTimeRange(tr)
-      setTimeLabel(tl)
-      setPlatform(identifySite(cleanUrl))
-      setIsPlaylistMode(false)
-      setPlaylistMeta(null)
-      setStage({name: 'probing', status: 'probing video…'})
+      setStage({name: 'probing', status: 'inspecting input…'})
 
       const ac = new AbortController()
       abortRef.current = ac
 
       try {
+        const [aria2c, ffmpeg] = await Promise.all([findAria2c(), findFfmpeg()])
+        aria2cPathRef.current = aria2c
+        ffmpegRef.current = ffmpeg
+
+        const inspection = await inspectTarget(rawInput, ac.signal)
+
+        if (inspection.type === 'torrent') {
+          setUrl(rawInput)
+          setPlatform({key: 'bittorrent', label: 'BitTorrent'})
+          setStage({name: 'torrent_prompt', title: inspection.name, target: inspection.target})
+          setHistory(addToHistory(rawInput))
+          return
+        }
+
+        if (inspection.type === 'direct') {
+          setUrl(inspection.url)
+          setPlatform({key: 'direct', label: 'Direct Download'})
+          setStage({
+            name: 'direct_prompt',
+            filename: inspection.filename,
+            size: inspection.size,
+            url: inspection.url,
+          })
+          setHistory(addToHistory(inspection.url))
+          return
+        }
+
+        // Video / Streaming
+        const {cleanUrl, timeRange: tr, timeLabel: tl} = inspection
+        setUrl(cleanUrl)
+        setTimeRange(tr)
+        setTimeLabel(tl)
+        setPlatform(identifySite(cleanUrl))
+        setIsPlaylistMode(false)
+        setPlaylistMeta(null)
+        setStage({name: 'probing', status: 'probing video…'})
+
         const bin = await ensureYtDlpBinary(
           msg => setStage(s => (s.name === 'probing' ? {...s, status: msg} : s)),
           ac.signal,
         )
         ytdlpRef.current = bin
 
-        const [ffmpeg, aria2c] = await Promise.all([findFfmpeg(), findAria2c()])
-        ffmpegRef.current = ffmpeg
-        aria2cPathRef.current = aria2c
-
-        // Check if URL is a playlist and not being time-trimmed
         if (!tr && isPlaylistUrl(cleanUrl)) {
           setStage({name: 'probing', status: 'inspecting playlist…'})
           const pl = await probePlaylist(bin, cleanUrl, ac.signal)
@@ -362,7 +484,13 @@ function AppContent({
     if (key.escape) {
       if (stage.name === 'probing' || stage.name === 'baking') {
         cancel()
-      } else if (stage.name === 'selecting' || stage.name === 'input' || stage.name === 'playlist_prompt') {
+      } else if (
+        stage.name === 'selecting' ||
+        stage.name === 'input' ||
+        stage.name === 'playlist_prompt' ||
+        stage.name === 'direct_prompt' ||
+        stage.name === 'torrent_prompt'
+      ) {
         setUrl('')
         setMeta(null)
         setPortions([])
@@ -430,7 +558,7 @@ function AppContent({
         match: BAKE_BUTTON,
         padY: 1,
         action: () => {
-          if (url.trim() && isLikelyUrl(url.trim())) void startProbe(url.trim())
+          if (url.trim() && isLikelyTarget(url.trim())) void startProbe(url.trim())
         },
       })
     }
@@ -488,7 +616,7 @@ function AppContent({
           {stage.name === 'input' && (
             <>
               <TrayInput
-                title="url"
+                title="url / magnet / file"
                 width={panelWidth}
                 actionLabel={BAKE_BUTTON}
                 actionDim={!url.trim()}
@@ -498,12 +626,12 @@ function AppContent({
                   onChange={handleUrlChange}
                   onSubmit={v => {
                     const trimmed = v.trim()
-                    if (trimmed && isLikelyUrl(trimmed)) void startProbe(trimmed)
+                    if (trimmed && isLikelyTarget(trimmed)) void startProbe(trimmed)
                   }}
-                  placeholder={clipboardUrl ? `${clipboardUrl}  ⇥ paste` : 'https://...'}
+                  placeholder={clipboardUrl ? `${clipboardUrl}  ⇥ paste` : 'https://... or magnet:?...'}
                   width={panelWidth - 8}
                   history={history}
-                  submitOnPaste={isLikelyUrl}
+                  submitOnPaste={isLikelyTarget}
                   onTab={clipboardUrl ? () => {setUrl(clipboardUrl); void startProbe(clipboardUrl)} : undefined}
                 />
               </TrayInput>
@@ -526,6 +654,70 @@ function AppContent({
                 {stage.status}
               </Text>
             </Box>
+          )}
+
+          {stage.name === 'direct_prompt' && (
+            <>
+              <Box flexDirection="column" alignItems="center" width={panelWidth}>
+                <Text bold>
+                  {truncate(stage.filename, panelWidth)}
+                </Text>
+                <Text dimColor={palette.dimAccent}>
+                  {[stage.size ? formatBytes(stage.size) : '', `${config.connections} connections · direct file`]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </Box>
+              <Gap />
+              <BunCard title="direct file download" width={panelWidth}>
+                <SelectInput
+                  items={[
+                    {label: `download file (${config.connections} connections)`, value: 'download'},
+                    {label: 'cancel', value: 'cancel'},
+                  ]}
+                  onSelect={item => {
+                    if (item.value === 'download') {
+                      void startDirectBake(stage.url, stage.filename)
+                    } else {
+                      setStage({name: 'input'})
+                    }
+                  }}
+                  indicatorComponent={PortionIndicator}
+                  itemComponent={PortionItem}
+                />
+              </BunCard>
+            </>
+          )}
+
+          {stage.name === 'torrent_prompt' && (
+            <>
+              <Box flexDirection="column" alignItems="center" width={panelWidth}>
+                <Text bold>
+                  {truncate(stage.title, panelWidth)}
+                </Text>
+                <Text dimColor={palette.dimAccent}>
+                  BitTorrent P2P transfer · aria2c
+                </Text>
+              </Box>
+              <Gap />
+              <BunCard title="bittorrent transfer" width={panelWidth}>
+                <SelectInput
+                  items={[
+                    {label: 'start BitTorrent download (P2P)', value: 'download'},
+                    {label: 'cancel', value: 'cancel'},
+                  ]}
+                  onSelect={item => {
+                    if (item.value === 'download') {
+                      void startTorrentBake(stage.target, stage.title)
+                    } else {
+                      setStage({name: 'input'})
+                    }
+                  }}
+                  indicatorComponent={PortionIndicator}
+                  itemComponent={PortionItem}
+                />
+              </BunCard>
+            </>
           )}
 
           {stage.name === 'playlist_prompt' && (
@@ -602,7 +794,11 @@ function AppContent({
           {stage.name === 'baking' && (
             <>
               <Text bold>
-                {truncate(isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Media', panelWidth)}
+                {truncate(
+                  stage.targetTitle ??
+                    (isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Download'),
+                  panelWidth,
+                )}
               </Text>
               {timeLabel && (
                 <Text dimColor={palette.dimAccent}>

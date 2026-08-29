@@ -1,6 +1,7 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import {parseAriaProgressLine} from './aria2c.js'
 import type {Portion} from './extractor.js'
 
 export type BakeProgress = {
@@ -123,31 +124,15 @@ export function bakeVideo(
             playlistTotal,
           })
         } else {
-          // When delegating to aria2c, yt-dlp yields stdout/stderr to aria2c which logs:
-          //   [#7156da 8.6MiB/11MiB(76%) CN:9 DL:9.4MiB ETA:1s]
-          // We intercept this so the TUI progress bar and speed indicators remain responsive.
-          const ariaMatch =
-            /^\[#[0-9a-fA-F]+\s+([^\/]+)\/([^(]+)\((\d+)%\)\s+CN:(\d+)\s+DL:([^ \]]+)(?:\s+ETA:([^ \]]+))?\]/.exec(
-              line,
-            )
-          if (ariaMatch) {
-            const downloadedBytes = parseUnitBytes(ariaMatch[1]!)
-            const totalBytes = parseUnitBytes(ariaMatch[2]!)
-            const speed = parseUnitBytes(ariaMatch[5]!)
-            let etaSeconds: number | undefined
-            if (ariaMatch[6]) {
-              etaSeconds = parseAriaEta(ariaMatch[6])
-            } else if (speed > 0 && totalBytes > downloadedBytes) {
-              etaSeconds = Math.round((totalBytes - downloadedBytes) / speed)
-            }
-
-            if (downloadedBytes < lastDownloaded && downloadedBytes > 0) part++
-            lastDownloaded = downloadedBytes
+          const aria = parseAriaProgressLine(line)
+          if (aria) {
+            if (aria.downloadedBytes < lastDownloaded && aria.downloadedBytes > 0) part++
+            lastDownloaded = aria.downloadedBytes
             handlers.onProgress({
-              downloadedBytes,
-              totalBytes: totalBytes > 0 ? totalBytes : undefined,
-              speed,
-              eta: etaSeconds,
+              downloadedBytes: aria.downloadedBytes,
+              totalBytes: aria.totalBytes,
+              speed: aria.speed,
+              eta: aria.eta,
               part,
               totalParts,
               playlistItem,
@@ -204,27 +189,6 @@ function parseNumber(value: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-function parseUnitBytes(str: string): number {
-  const match = /^([0-9.]+)\s*([A-Za-z]+)?$/.exec(str.trim())
-  if (!match) return 0
-  const val = Number.parseFloat(match[1]!)
-  const unit = (match[2] ?? '').toLowerCase()
-  if (unit.startsWith('g')) return Math.round(val * 1024 * 1024 * 1024)
-  if (unit.startsWith('m')) return Math.round(val * 1024 * 1024)
-  if (unit.startsWith('k')) return Math.round(val * 1024)
-  return Math.round(val)
-}
-
-function parseAriaEta(etaStr: string): number | undefined {
-  let seconds = 0
-  const h = /(\d+)h/.exec(etaStr)?.[1]
-  const m = /(\d+)m/.exec(etaStr)?.[1]
-  const s = /(\d+)s/.exec(etaStr)?.[1]
-  if (h) seconds += Number.parseInt(h, 10) * 3600
-  if (m) seconds += Number.parseInt(m, 10) * 60
-  if (s) seconds += Number.parseInt(s, 10)
-  return seconds > 0 ? seconds : undefined
-}
 
 function cleanErrorOutput(stderr: string): string {
   const lines = stderr
