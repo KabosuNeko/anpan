@@ -10,7 +10,8 @@ import {isLikelyTarget} from './core/domains.js'
 const VERSION: string = createRequire(import.meta.url)('../package.json').version
 
 const HELP = `
-  anpan — minimal terminal downloader
+  anpan — feed a link, bake a file.
+  (youtube · x · tiktok · soundcloud · torrent · +1800 more)
 
   Usage
     $ anpan [url|magnet|file]

@@ -35,7 +35,8 @@ import {findAria2c, buildAria2cArgs, bakeDirectDownload, bakeTorrentDownload} fr
 
 const BAKE_BUTTON = 'bake'
 const DONE_LABEL = '↵ download another'
-const TAGLINE = 'minimal terminal downloader'
+const TAGLINE = 'feed a link, bake a file.'
+const SUPPORTED_HINT = 'youtube · x · tiktok · soundcloud · torrent · +1800 more'
 
 const portionLabel = (p: Portion) => p.label
 
@@ -592,9 +593,10 @@ function AppContent({
     <StageViewport>
       <AnpanMascot />
       <Gap />
-      <Text dimColor={palette.dimAccent}>
-        {TAGLINE}
-      </Text>
+      <Box flexDirection="column" alignItems="center">
+        <Text>{TAGLINE}</Text>
+        <Text dimColor={palette.dimAccent}>{SUPPORTED_HINT}</Text>
+      </Box>
       <Gap />
 
       {showSettings ? (
