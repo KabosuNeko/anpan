@@ -37,16 +37,16 @@
   "license": "MIT",
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
-    "ink": "^7.1.0",
+    "ink": "^7.1.1",
     "ink-select-input": "^6.2.0",
     "ink-spinner": "^5.0.0",
-    "react": "^19.2.7"
+    "react": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.2.17",
+    "@types/node": "^26.4.0",
+    "@types/react": "^19.2.18",
     "tsup": "^8.5.1",
-    "tsx": "^4.23.1",
-    "typescript": "^5.8.0"
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }
