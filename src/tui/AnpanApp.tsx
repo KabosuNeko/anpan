@@ -598,7 +598,6 @@ function AppContent({
                   placeholder={clipboardUrl ? `${clipboardUrl}  ⇥ paste` : 'https://... or magnet:?...'}
                   width={panelWidth - 8}
                   history={history}
-                  submitOnPaste={isLikelyTarget}
                   onTab={clipboardUrl ? () => {setUrl(clipboardUrl); void startProbe(clipboardUrl)} : undefined}
                 />
               </TrayInput>

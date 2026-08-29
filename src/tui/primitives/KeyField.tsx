@@ -10,7 +10,6 @@ type KeyFieldProps = {
   placeholder?: string
   width?: number
   history?: string[]
-  submitOnPaste?: (value: string) => boolean
   onTab?: () => void
 }
 
@@ -35,7 +34,6 @@ export function KeyField({
   placeholder = '',
   width = 40,
   history = [],
-  submitOnPaste,
   onTab,
 }: KeyFieldProps) {
   const palette = useAnpanTheme()
@@ -179,16 +177,6 @@ export function KeyField({
       } else {
         next = value.slice(0, cursor) + cleaned + value.slice(cursor)
         newCur = cursor + cleaned.length
-      }
-
-      // Fast-path: if pasting a valid URL into an empty field in one chunk,
-      // trigger immediate submit so the user doesn't have to hit Enter.
-      if (cleaned.length > 1 && value === '' && submitOnPaste?.(next)) {
-        onChange(next)
-        setCursorState(newCur)
-        setAnchorState(null)
-        onSubmit?.(next)
-        return
       }
 
       update(next, newCur)
