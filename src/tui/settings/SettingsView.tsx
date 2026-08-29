@@ -15,11 +15,12 @@ type SettingsViewProps = {
   onClose: () => void
 }
 
-type SettingKey = 'aria2c' | 'connections' | 'preferQuality' | 'outDir'
+type SettingKey = 'aria2c' | 'connections' | 'embedMetadata' | 'preferQuality' | 'outDir'
 
 const ITEMS: Array<{key: SettingKey; label: string}> = [
   {key: 'aria2c', label: 'aria2c accelerator'},
   {key: 'connections', label: 'aria2c connections (-x -s)'},
+  {key: 'embedMetadata', label: 'embed audio tags & cover'},
   {key: 'preferQuality', label: 'default format'},
   {key: 'outDir', label: 'save directory'},
 ]
@@ -43,6 +44,8 @@ export function SettingsView({width, config, onChange, onClose}: SettingsViewPro
   const cycleValue = (key: SettingKey, direction: 1 | -1 = 1) => {
     if (key === 'aria2c') {
       onChange({...config, aria2c: !config.aria2c})
+    } else if (key === 'embedMetadata') {
+      onChange({...config, embedMetadata: !config.embedMetadata})
     } else if (key === 'connections') {
       const idx = CONNECTION_CHOICES.indexOf(config.connections)
       const nextIdx = (idx + direction + CONNECTION_CHOICES.length) % CONNECTION_CHOICES.length
@@ -127,6 +130,7 @@ export function SettingsView({width, config, onChange, onClose}: SettingsViewPro
 
   const formatVal = (key: SettingKey) => {
     if (key === 'aria2c') return config.aria2c ? 'on' : 'off'
+    if (key === 'embedMetadata') return config.embedMetadata ? 'on' : 'off'
     if (key === 'connections') return `${config.connections}`
     if (key === 'preferQuality') return config.preferQuality
     if (key === 'outDir') return shortenPath(config.outDir, os.homedir(), 24)

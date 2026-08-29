@@ -17,10 +17,13 @@ import {ThemeProvider, useAnpanTheme} from './theme/palette.js'
 import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate, wrapText} from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
 import {loadConfig, saveConfig, type AnpanConfig} from '../system/config.js'
-import {identifySite, isLikelyUrl, type SiteInfo} from '../core/domains.js'
+import {identifySite, isLikelyUrl, isPlaylistUrl, parseUrlInput, type SiteInfo} from '../core/domains.js'
 import {
+  extractPlaylistPortions,
   extractPortions,
+  probePlaylist,
   probeVideo,
+  type PlaylistMeta,
   type Portion,
   type VideoMeta,
 } from '../engine/extractor.js'
@@ -62,7 +65,14 @@ const Gap = ({lines = 1}: {lines?: number}) => (
 )
 
 function partTag(progress: BakeProgress): string {
-  return progress.totalParts > 1 ? `part ${progress.part + 1}/${progress.totalParts}  ` : ''
+  let tag = ''
+  if (progress.playlistItem && progress.playlistTotal) {
+    tag += `[${progress.playlistItem}/${progress.playlistTotal}] `
+  }
+  if (progress.totalParts > 1) {
+    tag += `part ${progress.part + 1}/${progress.totalParts}  `
+  }
+  return tag
 }
 
 function progressMeta(progress: BakeProgress): string {
@@ -82,6 +92,7 @@ export type Outcome = {filepath?: string}
 type Stage =
   | {name: 'input'; warning?: string}
   | {name: 'probing'; status: string}
+  | {name: 'playlist_prompt'; playlist: PlaylistMeta}
   | {name: 'selecting'}
   | {
       name: 'baking'
@@ -99,6 +110,12 @@ const HINTS: Record<Stage['name'], Array<[string, string]>> = {
     ['^c', 'quit'],
   ],
   probing: [
+    ['esc', 'cancel'],
+    ['^c', 'quit'],
+  ],
+  playlist_prompt: [
+    ['↑↓', 'choose'],
+    ['↵', 'select'],
     ['esc', 'cancel'],
     ['^c', 'quit'],
   ],
@@ -151,6 +168,11 @@ function AppContent({
   const [showSettings, setShowSettings] = useState(false)
 
   const [url, setUrl] = useState(initialUrl ?? '')
+  const [timeRange, setTimeRange] = useState<string | undefined>()
+  const [timeLabel, setTimeLabel] = useState<string | undefined>()
+  const [isPlaylistMode, setIsPlaylistMode] = useState(false)
+  const [playlistMeta, setPlaylistMeta] = useState<PlaylistMeta | null>(null)
+
   const [stage, setStage] = useState<Stage>(
     initialUrl
       ? {name: 'probing', status: 'probing video…'}
@@ -179,7 +201,11 @@ function AppContent({
       setPortions([])
       setPlatform(null)
       setCachedJsonPath(undefined)
-      if (stage.name === 'selecting' || stage.name === 'error') {
+      setTimeRange(undefined)
+      setTimeLabel(undefined)
+      setIsPlaylistMode(false)
+      setPlaylistMeta(null)
+      if (stage.name === 'selecting' || stage.name === 'error' || stage.name === 'playlist_prompt') {
         setStage({name: 'input'})
       }
     }
@@ -207,6 +233,8 @@ function AppContent({
             cachedJsonPath,
             portion,
             outputDir: config.outDir,
+            timeRange,
+            isPlaylist: isPlaylistMode,
           },
           {
             onProgress: progress =>
@@ -226,14 +254,46 @@ function AppContent({
         }
       }
     },
-    [cancel, url, cachedJsonPath, config, onOutcome],
+    [cancel, url, cachedJsonPath, config, timeRange, isPlaylistMode, onOutcome],
+  )
+
+  const probeSingle = useCallback(
+    async (targetUrl: string, bin: string, signal: AbortSignal) => {
+      setStage({name: 'probing', status: 'fetching video info…'})
+      const result = await probeVideo(bin, targetUrl, signal)
+      setMeta(result.meta)
+      setCachedJsonPath(result.cachedJsonPath)
+      const resolvedPortions = extractPortions(result.meta, {embedMetadata: config.embedMetadata})
+      setPortions(resolvedPortions)
+      setHistory(addToHistory(targetUrl))
+
+      if (config.preferQuality === 'best' && resolvedPortions[0]) {
+        void startBake(resolvedPortions[0])
+      } else if (config.preferQuality === 'audio') {
+        const audioChoice = resolvedPortions.find(p => p.kind === 'audio')
+        if (audioChoice) void startBake(audioChoice)
+        else setStage({name: 'selecting'})
+      } else if (config.preferQuality === '1080p') {
+        const p1080 = resolvedPortions.find(p => p.label.startsWith('1080p'))
+        if (p1080) void startBake(p1080)
+        else setStage({name: 'selecting'})
+      } else {
+        setStage({name: 'selecting'})
+      }
+    },
+    [config, startBake],
   )
 
   const startProbe = useCallback(
-    async (targetUrl: string) => {
+    async (rawInput: string) => {
       cancel()
-      setUrl(targetUrl)
-      setPlatform(identifySite(targetUrl))
+      const {cleanUrl, timeRange: tr, timeLabel: tl} = parseUrlInput(rawInput)
+      setUrl(cleanUrl)
+      setTimeRange(tr)
+      setTimeLabel(tl)
+      setPlatform(identifySite(cleanUrl))
+      setIsPlaylistMode(false)
+      setPlaylistMeta(null)
       setStage({name: 'probing', status: 'probing video…'})
 
       const ac = new AbortController()
@@ -250,26 +310,18 @@ function AppContent({
         ffmpegRef.current = ffmpeg
         aria2cPathRef.current = aria2c
 
-        const result = await probeVideo(bin, targetUrl, ac.signal)
-        setMeta(result.meta)
-        setCachedJsonPath(result.cachedJsonPath)
-        const resolvedPortions = extractPortions(result.meta)
-        setPortions(resolvedPortions)
-        setHistory(addToHistory(targetUrl))
-
-        if (config.preferQuality === 'best' && resolvedPortions[0]) {
-          void startBake(resolvedPortions[0])
-        } else if (config.preferQuality === 'audio') {
-          const audioChoice = resolvedPortions.find(p => p.kind === 'audio')
-          if (audioChoice) void startBake(audioChoice)
-          else setStage({name: 'selecting'})
-        } else if (config.preferQuality === '1080p') {
-          const p1080 = resolvedPortions.find(p => p.label.startsWith('1080p'))
-          if (p1080) void startBake(p1080)
-          else setStage({name: 'selecting'})
-        } else {
-          setStage({name: 'selecting'})
+        // Check if URL is a playlist and not being time-trimmed
+        if (!tr && isPlaylistUrl(cleanUrl)) {
+          setStage({name: 'probing', status: 'inspecting playlist…'})
+          const pl = await probePlaylist(bin, cleanUrl, ac.signal)
+          if (pl && pl.trackCount > 1) {
+            setPlaylistMeta(pl)
+            setStage({name: 'playlist_prompt', playlist: pl})
+            return
+          }
         }
+
+        await probeSingle(cleanUrl, bin, ac.signal)
       } catch (err) {
         if (ac.signal.aborted) {
           setStage({name: 'input'})
@@ -278,7 +330,7 @@ function AppContent({
         }
       }
     },
-    [cancel, config, startBake],
+    [cancel, probeSingle],
   )
 
   useEffect(() => {
@@ -310,12 +362,16 @@ function AppContent({
     if (key.escape) {
       if (stage.name === 'probing' || stage.name === 'baking') {
         cancel()
-      } else if (stage.name === 'selecting' || stage.name === 'input') {
+      } else if (stage.name === 'selecting' || stage.name === 'input' || stage.name === 'playlist_prompt') {
         setUrl('')
         setMeta(null)
         setPortions([])
         setPlatform(null)
         setCachedJsonPath(undefined)
+        setTimeRange(undefined)
+        setTimeLabel(undefined)
+        setIsPlaylistMode(false)
+        setPlaylistMeta(null)
         setStage({name: 'input'})
       }
     }
@@ -328,6 +384,10 @@ function AppContent({
       setPortions([])
       setPlatform(null)
       setCachedJsonPath(undefined)
+      setTimeRange(undefined)
+      setTimeLabel(undefined)
+      setIsPlaylistMode(false)
+      setPlaylistMeta(null)
       setStage({name: 'input'})
     }
   })
@@ -355,6 +415,10 @@ function AppContent({
             setShowSettings(false)
             setUrl('')
             setMeta(null)
+            setTimeRange(undefined)
+            setTimeLabel(undefined)
+            setIsPlaylistMode(false)
+            setPlaylistMeta(null)
             setStage({name: 'input'})
           },
         })
@@ -377,6 +441,10 @@ function AppContent({
         action: () => {
           setUrl('')
           setMeta(null)
+          setTimeRange(undefined)
+          setTimeLabel(undefined)
+          setIsPlaylistMode(false)
+          setPlaylistMeta(null)
           setStage({name: 'input'})
         },
       })
@@ -388,7 +456,7 @@ function AppContent({
     })
 
     clickTargets.current = targets
-  }, [stage, url, showSettings])
+  }, [stage, url, showSettings, cancel])
 
   const panelWidth = Math.min(64, cols - 4)
 
@@ -460,20 +528,67 @@ function AppContent({
             </Box>
           )}
 
-          {stage.name === 'selecting' && meta && (
+          {stage.name === 'playlist_prompt' && (
             <>
               <Box flexDirection="column" alignItems="center" width={panelWidth}>
                 <Text bold>
-                  {truncate(meta.title, panelWidth)}
+                  {truncate(stage.playlist.title, panelWidth)}
                 </Text>
                 <Text dimColor={palette.dimAccent}>
-                  {[meta.uploader, meta.duration ? formatDuration(meta.duration) : '', platform?.label]
+                  {[stage.playlist.uploader, `${stage.playlist.trackCount} tracks`, platform?.label]
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>
               </Box>
               <Gap />
-              <BunCard title="format" width={panelWidth}>
+              <BunCard title="playlist detected" width={panelWidth}>
+                <SelectInput
+                  items={[
+                    {label: `download full playlist (${stage.playlist.trackCount} tracks)`, value: 'full'},
+                    {label: 'download single track only', value: 'single'},
+                  ]}
+                  onSelect={item => {
+                    if (item.value === 'full') {
+                      setIsPlaylistMode(true)
+                      const plPortions = extractPlaylistPortions({embedMetadata: config.embedMetadata})
+                      setPortions(plPortions)
+                      setStage({name: 'selecting'})
+                    } else {
+                      setIsPlaylistMode(false)
+                      const ac = new AbortController()
+                      abortRef.current = ac
+                      void probeSingle(url, ytdlpRef.current, ac.signal)
+                    }
+                  }}
+                  indicatorComponent={PortionIndicator}
+                  itemComponent={PortionItem}
+                />
+              </BunCard>
+            </>
+          )}
+
+          {stage.name === 'selecting' && (
+            <>
+              <Box flexDirection="column" alignItems="center" width={panelWidth}>
+                <Text bold>
+                  {truncate(isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Media', panelWidth)}
+                </Text>
+                <Text dimColor={palette.dimAccent}>
+                  {(isPlaylistMode && playlistMeta
+                    ? [playlistMeta.uploader, `${playlistMeta.trackCount} tracks`, platform?.label]
+                    : [meta?.uploader, meta?.duration ? formatDuration(meta.duration) : '', platform?.label]
+                  )
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+                {timeLabel && (
+                  <Text dimColor={palette.dimAccent}>
+                    trim: <Text bold>{timeLabel}</Text>
+                  </Text>
+                )}
+              </Box>
+              <Gap />
+              <BunCard title={isPlaylistMode ? 'playlist format' : 'format'} width={panelWidth}>
                 <SelectInput
                   items={portions.map(p => ({label: portionLabel(p), value: p}))}
                   onSelect={item => void startBake(item.value)}
@@ -486,9 +601,12 @@ function AppContent({
 
           {stage.name === 'baking' && (
             <>
-              {meta && (
-                <Text bold>
-                  {truncate(meta.title, panelWidth)}
+              <Text bold>
+                {truncate(isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Media', panelWidth)}
+              </Text>
+              {timeLabel && (
+                <Text dimColor={palette.dimAccent}>
+                  trim: <Text bold>{timeLabel}</Text>
                 </Text>
               )}
               <Gap />
@@ -535,7 +653,7 @@ function AppContent({
           {stage.name === 'baked' && (
             <>
               <Text bold>
-                downloaded
+                {isPlaylistMode ? 'playlist downloaded' : 'downloaded'}
               </Text>
               <Text dimColor={palette.dimAccent}>
                 {shortenPath(stage.filepath, os.homedir(), panelWidth)}

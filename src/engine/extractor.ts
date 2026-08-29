@@ -74,7 +74,7 @@ export async function probeVideo(
 
 const MAX_VIDEO_TIERS = 8
 
-export function extractPortions(meta: VideoMeta): Portion[] {
+export function extractPortions(meta: VideoMeta, opts?: {embedMetadata?: boolean}): Portion[] {
   const streams = meta.formats ?? []
   const portions: Portion[] = []
 
@@ -122,13 +122,91 @@ export function extractPortions(meta: VideoMeta): Portion[] {
   }
 
   const audioSizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
+  const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0']
+  if (opts?.embedMetadata !== false) {
+    audioArgs.push('--embed-thumbnail', '--add-metadata')
+  }
   portions.push({
     kind: 'audio',
     label: `audio only · mp3${audioSizeTag}`,
-    ytdlpArgs: ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0'],
+    ytdlpArgs: audioArgs,
   })
 
   return portions
+}
+
+export type PlaylistMeta = {
+  title: string
+  uploader?: string
+  trackCount: number
+  webpage_url: string
+}
+
+// Light probe for playlist info using --flat-playlist: returns in ~1s without pulling full stream lists
+export async function probePlaylist(
+  ytdlpBin: string,
+  url: string,
+  signal?: AbortSignal,
+): Promise<PlaylistMeta | null> {
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = spawn(
+        ytdlpBin,
+        ['--flat-playlist', '-J', '--no-warnings', url],
+        {signal},
+      )
+      let out = ''
+      let errOut = ''
+      child.stdout.on('data', chunk => (out += chunk))
+      child.stderr.on('data', chunk => (errOut += chunk))
+      child.on('error', reject)
+      child.on('close', code => {
+        if (code !== 0) reject(new Error(cleanErrorOutput(errOut) || `yt-dlp exited with code ${code}`))
+        else resolve(out)
+      })
+    })
+
+    const data = JSON.parse(stdout) as {
+      _type?: string
+      title?: string
+      uploader?: string
+      playlist_count?: number
+      entries?: unknown[]
+      webpage_url?: string
+    }
+
+    if (data._type === 'playlist' || Array.isArray(data.entries)) {
+      const trackCount = data.playlist_count ?? data.entries?.length ?? 0
+      return {
+        title: data.title || 'Playlist',
+        uploader: data.uploader,
+        trackCount,
+        webpage_url: data.webpage_url || url,
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export function extractPlaylistPortions(opts?: {embedMetadata?: boolean}): Portion[] {
+  const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0']
+  if (opts?.embedMetadata !== false) {
+    audioArgs.push('--embed-thumbnail', '--add-metadata')
+  }
+  return [
+    {
+      kind: 'audio',
+      label: 'all tracks · mp3 (audio only)',
+      ytdlpArgs: audioArgs,
+    },
+    {
+      kind: 'video',
+      label: 'all videos · mp4 (best quality)',
+      ytdlpArgs: ['-f', 'bv*+ba/b', '--merge-output-format', 'mp4'],
+    },
+  ]
 }
 
 function scoreStream(s: RawStream): number {
