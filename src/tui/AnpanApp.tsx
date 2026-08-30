@@ -27,6 +27,7 @@ import {
 } from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
 import {loadConfig, saveConfig} from '../system/config.js'
+import {checkUpdate} from '../system/update.js'
 import {identifySite, isLikelyTarget, isPlaylistUrl, type SiteInfo} from '../core/domains.js'
 import {inspectTarget} from '../core/router.js'
 import {
@@ -181,6 +182,7 @@ type AnpanAppProps = {
   initialUrl?: string
   initialOutDir?: string
   clipboardUrl?: string
+  version?: string
   onOutcome: (outcome: Outcome) => void
 }
 
@@ -196,12 +198,30 @@ function AppContent({
   initialUrl,
   initialOutDir,
   clipboardUrl,
+  version,
   onOutcome,
 }: AnpanAppProps) {
   const palette = useAnpanTheme()
   const {exit} = useApp()
   const {stdout} = useStdout()
   const cols = stdout?.columns ?? 80
+
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!version) return
+    let active = true
+    checkUpdate(version)
+      .then(res => {
+        if (active && res?.updateAvailable) {
+          setLatestVersion(res.latestVersion)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [version])
 
   const [config, setConfig] = useState(loadConfig)
   const [showSettings, setShowSettings] = useState(false)
@@ -745,6 +765,15 @@ function AppContent({
       <Box flexDirection="column" alignItems="center">
         <Text>{TAGLINE}</Text>
         <Text dimColor={palette.dimAccent}>{SUPPORTED_HINT}</Text>
+        {latestVersion && (stage.name === 'input' || stage.name === 'baked') && (
+          <Box marginTop={1}>
+            <Text color="yellow">✦ update available: </Text>
+            <Text dimColor>{version}</Text>
+            <Text color="yellow"> → </Text>
+            <Text bold color="green">{latestVersion}</Text>
+            <Text dimColor> (run: npm i -g anpan-cli)</Text>
+          </Box>
+        )}
       </Box>
       <Gap />
 
