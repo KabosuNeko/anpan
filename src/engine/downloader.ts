@@ -80,10 +80,14 @@ export async function bakeVideo(
       ? [
           '--yes-playlist',
           '--ignore-errors',
-          '--parse-metadata',
-          'playlist_title:(?i)^(?:album|ep|single)\\s*[-:–—]\\s*(?P<playlist_title>.+)$',
-          '--parse-metadata',
-          'playlist:(?i)^(?:album|ep|single)\\s*[-:–—]\\s*(?P<playlist>.+)$',
+          '--replace-in-metadata',
+          'playlist_title',
+          '(?i)^(?:album|ep|single)\\s*[-:–—]\\s*',
+          '',
+          '--replace-in-metadata',
+          'playlist',
+          '(?i)^(?:album|ep|single)\\s*[-:–—]\\s*',
+          '',
         ]
       : ['--no-playlist']),
     '--no-warnings',
