@@ -45,7 +45,7 @@ export type BakeVideoOptions = {
   writeThumbnail?: boolean
 }
 
-export function bakeVideo(
+export async function bakeVideo(
   opts: BakeVideoOptions,
   handlers: BakeHandlers,
   signal?: AbortSignal,
@@ -102,6 +102,8 @@ export function bakeVideo(
   if (opts.writeThumbnail) {
     args.push('--write-thumbnail')
   }
+
+  await fs.mkdir(opts.outputDir, {recursive: true})
 
   return new Promise((resolve, reject) => {
     const child = spawn(opts.ytdlpBin, args, {signal})
