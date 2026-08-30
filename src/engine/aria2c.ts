@@ -119,6 +119,10 @@ export function bakeDirectDownload(
     '1M',
     '-j',
     String(c),
+    '--connect-timeout=8',
+    '--timeout=15',
+    '--max-tries=3',
+    '--retry-wait=1',
     '--summary-interval=1',
     '--auto-file-renaming=false',
     '--allow-overwrite=true',
@@ -157,7 +161,7 @@ export function bakeTorrentDownload(
 export async function bakeBatchDownload(
   opts: {
     aria2cBin: string
-    items: Array<{url: string; filename: string}>
+    items: Array<{url: string; mirrors?: string[]; filename?: string; name?: string}>
     outputDir: string
     connections?: number
   },
@@ -170,7 +174,11 @@ export async function bakeBatchDownload(
   const tmpBatchFile = path.join(os.tmpdir(), `anpan-batch-${process.pid}-${Date.now()}.txt`)
 
   const content = opts.items
-    .map(item => `${item.url}\n  out=${item.filename}`)
+    .map(item => {
+      const uris = item.mirrors && item.mirrors.length > 0 ? item.mirrors.join('\t') : item.url
+      const out = item.filename || item.name
+      return out ? `${uris}\n  out=${out}` : uris
+    })
     .join('\n')
   await fs.writeFile(tmpBatchFile, `${content}\n`, 'utf8')
 
@@ -187,6 +195,10 @@ export async function bakeBatchDownload(
     '1M',
     '-j',
     String(c),
+    '--connect-timeout=8',
+    '--timeout=15',
+    '--max-tries=3',
+    '--retry-wait=1',
     '--summary-interval=1',
     '--auto-file-renaming=false',
     '--allow-overwrite=true',

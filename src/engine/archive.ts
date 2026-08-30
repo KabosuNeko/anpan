@@ -1,6 +1,7 @@
 export type ArchiveFile = {
   name: string
   url: string
+  mirrors?: string[]
 }
 
 export type ArchivePost = {
@@ -92,16 +93,19 @@ export async function probeArchivePost(
 
       const fallbackName = rawFile.path.split('/').pop() ?? 'file'
       const cleanName = (rawFile.name || fallbackName).replace(/[/\\?%*:|"<>]/g, '_')
+      const encodedName = encodeURIComponent(cleanName)
 
-      let fileUrl = ''
-      if (isPawchive) {
-        fileUrl = `https://file.pawchive.pw/data${rawFile.path}?f=${encodeURIComponent(cleanName)}`
+      const mirrors: string[] = []
+      if (isCoomer) {
+        mirrors.push(`https://coomer.st/data${rawFile.path}?f=${encodedName}`)
       } else {
-        const cdnDomain = isCoomer ? 'https://coomer.st' : 'https://kemono.cr'
-        fileUrl = `${cdnDomain}/data${rawFile.path}?f=${encodeURIComponent(cleanName)}`
+        // Both Pawchive and Kemono share the same sha256 content hashes.
+        // We include file.pawchive.pw first because n*.kemono.cr storage nodes frequently experience outages/timeouts.
+        mirrors.push(`https://file.pawchive.pw/data${rawFile.path}?f=${encodedName}`)
+        mirrors.push(`https://kemono.cr/data${rawFile.path}?f=${encodedName}`)
       }
 
-      files.push({name: cleanName, url: fileUrl})
+      files.push({name: cleanName, url: mirrors[0]!, mirrors})
     }
 
     if (post.file) addFile(post.file)
