@@ -83,3 +83,23 @@ test('cleanAlbumTitle strips Album, EP, Single prefixes cleanly', () => {
   assert.equal(cleanAlbumTitle('Normal Playlist'), 'Normal Playlist')
   assert.equal(cleanAlbumTitle(undefined), 'Playlist')
 })
+
+test('extractPortions does not show video options for audio-only platforms like SoundCloud', () => {
+  const meta: VideoMeta = {
+    title: 'SoundCloud Track',
+    duration: 180,
+    formats: [
+      {format_id: 'hls_mp3', ext: 'mp3', acodec: 'mp3', vcodec: 'none', abr: 128},
+      {format_id: 'hls_aac', ext: 'm4a', acodec: 'mp4a.40.2', vcodec: 'none', abr: 160},
+    ],
+  }
+
+  const portions = extractPortions(meta)
+  const videoPortions = portions.filter(p => p.kind === 'video')
+  assert.equal(videoPortions.length, 0)
+
+  const audioPortions = portions.filter(p => p.kind === 'audio')
+  assert.ok(audioPortions.length >= 2)
+  assert.ok(audioPortions.some(p => p.label.startsWith('audio only · m4a (aac)')))
+  assert.ok(audioPortions.some(p => p.label.startsWith('audio only · mp3 (original)')))
+})

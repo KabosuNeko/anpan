@@ -96,6 +96,7 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     audioSize = Math.round((((bestAudio.abr ?? bestAudio.tbr ?? 128) * 1000) / 8) * meta.duration)
   }
 
+  const hasVideo = streams.some(s => s.vcodec && s.vcodec !== 'none')
   const videoStreams = streams.filter(s => s.vcodec && s.vcodec !== 'none' && s.height)
   // Retrieve ALL available heights in descending order (no truncation to 8 tiers)
   const heights = [...new Set(videoStreams.map(s => s.height as number))].sort((a, b) => b - a)
@@ -131,7 +132,8 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     })
   }
 
-  if (portions.length === 0) {
+  // Only push fallback video stream if the media actually has a video stream!
+  if (hasVideo && portions.length === 0) {
     portions.push({
       kind: 'video',
       label: `best available · ${container}`,
@@ -219,6 +221,15 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
       ytdlpArgs: mp3Args,
     })
     addedAudioFormats.add('mp3')
+  }
+
+  // Final fallback if link provided neither video nor audio streams
+  if (portions.length === 0) {
+    portions.push({
+      kind: 'video',
+      label: `best available · ${container}`,
+      ytdlpArgs: ['-f', 'bv*+ba/b', '--merge-output-format', container],
+    })
   }
 
   return portions
