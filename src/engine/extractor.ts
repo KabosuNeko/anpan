@@ -139,52 +139,61 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     })
   }
 
-  // Audio streams
+  // Audio streams: Universal detection for all platforms (YTM, YouTube, SoundCloud, Bandcamp, TikTok, etc.)
   const addedAudioFormats = new Set<string>()
+  const nativeAudioMap = new Map<string, RawStream>()
 
-  // 1. Check for native Opus stream (YouTube / YTM native audio)
-  const nativeOpus = audioStreams.find(
-    s => s.acodec?.toLowerCase().includes('opus') || s.ext === 'webm',
-  )
-  if (nativeOpus) {
-    let opusBytes = nativeOpus.filesize ?? nativeOpus.filesize_approx
-    if (!opusBytes && (nativeOpus.abr || nativeOpus.tbr) && meta.duration) {
-      opusBytes = Math.round((((nativeOpus.abr ?? nativeOpus.tbr ?? 128) * 1000) / 8) * meta.duration)
+  for (const s of audioStreams) {
+    const codec = s.acodec?.toLowerCase() || ''
+    const ext = s.ext?.toLowerCase() || ''
+    let key = ''
+    if (codec.includes('flac') || ext === 'flac') key = 'flac'
+    else if (codec.includes('opus') || ext === 'webm') key = 'opus'
+    else if (codec.includes('mp4a') || codec.includes('aac') || ext === 'm4a') key = 'm4a'
+    else if (codec.includes('mp3') || ext === 'mp3') key = 'mp3'
+    else if (codec.includes('vorbis') || ext === 'ogg') key = 'ogg'
+    else if (ext && ext !== 'none') key = ext
+
+    if (key) {
+      const existing = nativeAudioMap.get(key)
+      if (!existing || (s.abr ?? s.tbr ?? 0) > (existing.abr ?? existing.tbr ?? 0)) {
+        nativeAudioMap.set(key, s)
+      }
     }
-    const opusSizeTag = opusBytes ? ` · ~${formatBytes(opusBytes)}` : ''
-    const opusAbrTag = nativeOpus.abr ? ` · ~${Math.round(nativeOpus.abr)}kbps` : ''
-    const opusArgs = ['-f', 'ba[acodec^=opus]/ba', '-x', '--audio-format', 'opus']
-    if (opts?.embedMetadata !== false) opusArgs.push('--embed-thumbnail', '--add-metadata')
-    portions.push({
-      kind: 'audio',
-      label: `audio only · opus (original)${opusAbrTag}${opusSizeTag}`,
-      ytdlpArgs: opusArgs,
-    })
-    addedAudioFormats.add('opus')
   }
 
-  // 2. Check for native M4A / AAC stream
-  const nativeM4a = audioStreams.find(
-    s => s.ext === 'm4a' || s.acodec?.toLowerCase().includes('mp4a'),
-  )
-  if (nativeM4a) {
-    let m4aBytes = nativeM4a.filesize ?? nativeM4a.filesize_approx
-    if (!m4aBytes && (nativeM4a.abr || nativeM4a.tbr) && meta.duration) {
-      m4aBytes = Math.round((((nativeM4a.abr ?? nativeM4a.tbr ?? 128) * 1000) / 8) * meta.duration)
+  // Preferred order of native formats to present
+  const priorityKeys = ['opus', 'flac', 'm4a', 'mp3', 'ogg']
+  for (const key of [...priorityKeys, ...Array.from(nativeAudioMap.keys()).filter(k => !priorityKeys.includes(k))]) {
+    const stream = nativeAudioMap.get(key)
+    if (!stream) continue
+
+    let bytes = stream.filesize ?? stream.filesize_approx
+    if (!bytes && (stream.abr || stream.tbr) && meta.duration) {
+      bytes = Math.round((((stream.abr ?? stream.tbr ?? 128) * 1000) / 8) * meta.duration)
     }
-    const m4aSizeTag = m4aBytes ? ` · ~${formatBytes(m4aBytes)}` : ''
-    const m4aAbrTag = nativeM4a.abr ? ` · ~${Math.round(nativeM4a.abr)}kbps` : ''
-    const m4aArgs = ['-f', 'ba[ext=m4a]/ba', '-x', '--audio-format', 'm4a']
-    if (opts?.embedMetadata !== false) m4aArgs.push('--embed-thumbnail', '--add-metadata')
+    const sizeTag = bytes ? ` · ~${formatBytes(bytes)}` : ''
+    const abrTag = stream.abr ? ` · ~${Math.round(stream.abr)}kbps` : ''
+    const isLossless = key === 'flac' || key === 'wav'
+    const tagSuffix = isLossless ? ' (lossless)' : key === 'm4a' ? ' (aac)' : ' (original)'
+
+    let ytdlpFormatSelector = `ba[ext=${stream.ext}]/ba`
+    if (key === 'opus') ytdlpFormatSelector = 'ba[acodec^=opus]/ba'
+    else if (key === 'm4a') ytdlpFormatSelector = 'ba[ext=m4a]/ba'
+    else if (stream.format_id) ytdlpFormatSelector = `${stream.format_id}/ba`
+
+    const audioArgs = ['-f', ytdlpFormatSelector, '-x', '--audio-format', key]
+    if (opts?.embedMetadata !== false) audioArgs.push('--embed-thumbnail', '--add-metadata')
+
     portions.push({
       kind: 'audio',
-      label: `audio only · m4a (aac)${m4aAbrTag}${m4aSizeTag}`,
-      ytdlpArgs: m4aArgs,
+      label: `audio only · ${key}${tagSuffix}${abrTag}${sizeTag}`,
+      ytdlpArgs: audioArgs,
     })
-    addedAudioFormats.add('m4a')
+    addedAudioFormats.add(key)
   }
 
-  // 3. User configured audio format (if not already added as opus/m4a)
+  // User-configured audio format (if not already added above)
   if (!addedAudioFormats.has(audioFmt)) {
     const audioSizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
     const audioBitrateTag = bestAudio?.abr ? ` · ${Math.round(bestAudio.abr)}kbps` : ''
@@ -199,7 +208,7 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     addedAudioFormats.add(audioFmt)
   }
 
-  // 4. Universal MP3 fallback if not yet added
+  // Universal MP3 fallback if not yet added
   if (!addedAudioFormats.has('mp3')) {
     const mp3SizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
     const mp3Args = ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0']
