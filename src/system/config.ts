@@ -5,9 +5,17 @@ import path from 'node:path'
 export type AnpanConfig = {
   aria2c: boolean
   connections: 4 | 8 | 16 | 32
-  embedMetadata: boolean
+  askSaveDir: boolean
   outDir: string
   preferQuality: 'ask' | 'best' | '1080p' | 'audio'
+  videoContainer: 'mp4' | 'mkv' | 'webm'
+  audioFormat: 'mp3' | 'm4a' | 'opus' | 'flac' | 'wav'
+  cookiesBrowser: 'none' | 'chrome' | 'firefox' | 'brave' | 'edge' | 'safari'
+  subtitles: 'off' | 'embed' | 'write'
+  subLangs: 'vi,en' | 'all' | 'en'
+  sponsorBlock: 'off' | 'remove' | 'mark'
+  embedMetadata: boolean
+  writeThumbnail: boolean
 }
 
 const CONFIG_PATH = path.join(os.homedir(), '.config', 'anpan', 'config.json')
@@ -15,9 +23,17 @@ const CONFIG_PATH = path.join(os.homedir(), '.config', 'anpan', 'config.json')
 export const DEFAULT_CONFIG: AnpanConfig = {
   aria2c: true,
   connections: 16,
-  embedMetadata: true,
+  askSaveDir: true,
   outDir: path.join(os.homedir(), 'Downloads'),
   preferQuality: 'ask',
+  videoContainer: 'mp4',
+  audioFormat: 'mp3',
+  cookiesBrowser: 'none',
+  subtitles: 'off',
+  subLangs: 'vi,en',
+  sponsorBlock: 'off',
+  embedMetadata: true,
+  writeThumbnail: false,
 }
 
 export function loadConfig(): AnpanConfig {
@@ -29,12 +45,36 @@ export function loadConfig(): AnpanConfig {
       connections: [4, 8, 16, 32].includes(parsed.connections as number)
         ? (parsed.connections as 4 | 8 | 16 | 32)
         : DEFAULT_CONFIG.connections,
+      askSaveDir:
+        typeof parsed.askSaveDir === 'boolean' ? parsed.askSaveDir : DEFAULT_CONFIG.askSaveDir,
       embedMetadata:
         typeof parsed.embedMetadata === 'boolean' ? parsed.embedMetadata : DEFAULT_CONFIG.embedMetadata,
+      writeThumbnail:
+        typeof parsed.writeThumbnail === 'boolean' ? parsed.writeThumbnail : DEFAULT_CONFIG.writeThumbnail,
       outDir: typeof parsed.outDir === 'string' && parsed.outDir.trim() ? parsed.outDir : DEFAULT_CONFIG.outDir,
       preferQuality: ['ask', 'best', '1080p', 'audio'].includes(parsed.preferQuality as string)
         ? (parsed.preferQuality as AnpanConfig['preferQuality'])
         : DEFAULT_CONFIG.preferQuality,
+      videoContainer: ['mp4', 'mkv', 'webm'].includes(parsed.videoContainer as string)
+        ? (parsed.videoContainer as AnpanConfig['videoContainer'])
+        : DEFAULT_CONFIG.videoContainer,
+      audioFormat: ['mp3', 'm4a', 'opus', 'flac', 'wav'].includes(parsed.audioFormat as string)
+        ? (parsed.audioFormat as AnpanConfig['audioFormat'])
+        : DEFAULT_CONFIG.audioFormat,
+      cookiesBrowser: ['none', 'chrome', 'firefox', 'brave', 'edge', 'safari'].includes(
+        parsed.cookiesBrowser as string,
+      )
+        ? (parsed.cookiesBrowser as AnpanConfig['cookiesBrowser'])
+        : DEFAULT_CONFIG.cookiesBrowser,
+      subtitles: ['off', 'embed', 'write'].includes(parsed.subtitles as string)
+        ? (parsed.subtitles as AnpanConfig['subtitles'])
+        : DEFAULT_CONFIG.subtitles,
+      subLangs: ['vi,en', 'all', 'en'].includes(parsed.subLangs as string)
+        ? (parsed.subLangs as AnpanConfig['subLangs'])
+        : DEFAULT_CONFIG.subLangs,
+      sponsorBlock: ['off', 'remove', 'mark'].includes(parsed.sponsorBlock as string)
+        ? (parsed.sponsorBlock as AnpanConfig['sponsorBlock'])
+        : DEFAULT_CONFIG.sponsorBlock,
     }
   } catch {
     return {...DEFAULT_CONFIG}
