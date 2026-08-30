@@ -36,10 +36,7 @@ export function formatEta(seconds: number): string {
   return formatDuration(seconds)
 }
 
-// POSIX terminal emulators allocate 2 monospace grid columns for CJK ideographs,
-// full-width punctuation, and kana. String.length counts UTF-16 code units (1),
-// so naive truncation causes yoga/ink to miscalculate boundaries and wrap unexpectedly.
-export function strWidth(str: string): number {
+function strWidth(str: string): number {
   let width = 0
   for (const ch of str) {
     const code = ch.codePointAt(0) ?? 0
@@ -81,13 +78,12 @@ export function shortenPath(filepath: string, homedir: string, max = 60): string
   const normFile = path.normalize(filepath)
   const normHome = path.normalize(homedir)
   const isWindows = process.platform === 'win32'
+  const lowerFile = normFile.toLowerCase()
+  const lowerHome = normHome.toLowerCase()
   const isUnderHome = isWindows
-    ? normFile.toLowerCase().startsWith(normHome.toLowerCase())
-    : normFile.startsWith(normHome)
-
-  const pretty = isUnderHome
-    ? `~${normFile.slice(normHome.length).replace(/\\/g, '/')}`
-    : normFile
+    ? lowerFile === lowerHome || lowerFile.startsWith(lowerHome + path.sep.toLowerCase()) || lowerFile.startsWith(lowerHome + '/')
+    : normFile === normHome || normFile.startsWith(`${normHome}${path.posix.sep}`)
+  const pretty = isUnderHome ? `~${normFile.slice(normHome.length)}` : normFile
   if (pretty.length <= max) return pretty
   const ext = /\.\w{1,5}$/.exec(pretty)?.[0] ?? ''
   return `${pretty.slice(0, max - ext.length - 1)}…${ext}`
@@ -101,8 +97,6 @@ export function resolveUserPath(raw: string, homedir = os.homedir()): string {
   return path.resolve(cleaned)
 }
 
-// Word-wrap text into left-flush lines of at most `width` columns.
-// Uses strWidth so lines containing East Asian characters don't overflow the panel.
 export function wrapText(text: string, width: number): string[] {
   const lines: string[] = []
   let current = ''
