@@ -15,6 +15,9 @@ const KNOWN_SITES: ReadonlyArray<{hosts: string[]; site: SiteInfo}> = [
   {hosts: ['facebook.com', 'fb.watch'], site: {key: 'facebook', label: 'Facebook'}},
   {hosts: ['soundcloud.com'], site: {key: 'soundcloud', label: 'SoundCloud'}},
   {hosts: ['bandcamp.com'], site: {key: 'bandcamp', label: 'Bandcamp'}},
+  {hosts: ['kemono.cr', 'kemono.su', 'kemono.party'], site: {key: 'kemono', label: 'Kemono'}},
+  {hosts: ['coomer.su', 'coomer.party', 'coomer.st'], site: {key: 'coomer', label: 'Coomer'}},
+  {hosts: ['pawchive.st', 'pawchive.pw'], site: {key: 'pawchive', label: 'Pawchive'}},
 ]
 
 export function identifySite(url: string): SiteInfo {

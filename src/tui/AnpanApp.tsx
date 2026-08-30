@@ -41,7 +41,8 @@ import {
 import {bakeVideo, type BakeProgress} from '../engine/downloader.js'
 import {ensureYtDlpBinary} from '../engine/binary.js'
 import {findFfmpeg} from '../engine/ffmpeg.js'
-import {findAria2c, buildAria2cArgs, bakeDirectDownload, bakeTorrentDownload} from '../engine/aria2c.js'
+import {findAria2c, buildAria2cArgs, bakeDirectDownload, bakeTorrentDownload, bakeBatchDownload} from '../engine/aria2c.js'
+import type {ArchivePost} from '../engine/archive.js'
 
 const BAKE_BUTTON = 'bake'
 const DONE_LABEL = '↵ download another'
@@ -76,10 +77,9 @@ const Gap = ({lines = 1}: {lines?: number}) => (
 function partTag(progress: BakeProgress): string {
   let tag = ''
   if (progress.playlistItem && progress.playlistTotal) {
-    tag += `[${progress.playlistItem}/${progress.playlistTotal}] `
-  }
-  if (progress.totalParts > 1) {
-    tag += `part ${progress.part + 1}/${progress.totalParts}  `
+    tag = `[${progress.playlistItem}/${progress.playlistTotal}] `
+  } else if (progress.totalParts > 1) {
+    tag = `[${progress.part}/${progress.totalParts}] `
   }
   return tag
 }
@@ -110,6 +110,7 @@ type Stage =
       portion?: Portion
       directTarget?: {url: string; filename: string}
       torrentTarget?: {target: string; title: string}
+      archiveTarget?: {title: string; items: Array<{name: string; url: string}>}
     }
   | {
       name: 'baking'
@@ -210,6 +211,7 @@ function AppContent({
   const [timeLabel, setTimeLabel] = useState<string | undefined>()
   const [isPlaylistMode, setIsPlaylistMode] = useState(false)
   const [playlistMeta, setPlaylistMeta] = useState<PlaylistMeta | null>(null)
+  const [archivePost, setArchivePost] = useState<ArchivePost | null>(null)
   const [isCustomDirInput, setIsCustomDirInput] = useState(false)
   const [customDirInput, setCustomDirInput] = useState('')
 
@@ -238,6 +240,7 @@ function AppContent({
     setUrl('')
     setMeta(null)
     setPortions([])
+    setArchivePost(null)
     setPlatform(null)
     setCachedJsonPath(undefined)
     setTimeRange(undefined)
@@ -385,6 +388,81 @@ function AppContent({
     [cancel, initialOutDir, config.outDir, onOutcome],
   )
 
+  const startArchiveBake = useCallback(
+    async (title: string, items: Array<{name: string; url: string}>, targetOutputDir?: string) => {
+      cancel()
+      const ac = new AbortController()
+      abortRef.current = ac
+
+      setStage({
+        name: 'baking',
+        targetTitle: title,
+        processing: false,
+      })
+
+      try {
+        const baseOutDir = resolveUserPath(targetOutputDir || initialOutDir || config.outDir)
+        const effectiveOutDir =
+          items.length > 1 ? path.join(baseOutDir, title) : baseOutDir
+
+        const bin = aria2cPathRef.current || (await findAria2c())
+        if (!bin) throw new Error('aria2c is required for downloading archive posts.')
+
+        const filepath = await bakeBatchDownload(
+          {
+            aria2cBin: bin,
+            items: items.map(it => ({url: it.url, filename: it.name})),
+            outputDir: effectiveOutDir,
+            connections: config.connections,
+          },
+          {
+            onProgress: progress =>
+              setStage(s => (s.name === 'baking' ? {...s, progress} : s)),
+          },
+          ac.signal,
+        )
+        onOutcome({filepath})
+        setStage({name: 'baked', filepath})
+      } catch (err) {
+        if (ac.signal.aborted) {
+          setStage({name: 'input'})
+        } else {
+          setStage({name: 'error', message: (err as Error).message})
+        }
+      }
+    },
+    [cancel, initialOutDir, config.outDir, config.connections, onOutcome],
+  )
+
+  const triggerArchiveDownload = useCallback(
+    (title: string, items: Array<{name: string; url: string}>) => {
+      if (config.askSaveDir && !initialOutDir) {
+        setIsCustomDirInput(false)
+        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
+        setStage({name: 'dest_prompt', archiveTarget: {title, items}})
+      } else {
+        void startArchiveBake(title, items)
+      }
+    },
+    [config.askSaveDir, config.outDir, initialOutDir, startArchiveBake],
+  )
+
+  const triggerDirectDownload = useCallback(
+    (targetUrl: string, filename: string) => {
+      if (config.askSaveDir && !initialOutDir) {
+        setIsCustomDirInput(false)
+        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
+        setStage({
+          name: 'dest_prompt',
+          directTarget: {url: targetUrl, filename},
+        })
+      } else {
+        void startDirectBake(targetUrl, filename)
+      }
+    },
+    [config.askSaveDir, config.outDir, initialOutDir, startDirectBake],
+  )
+
   const triggerPortionDownload = useCallback(
     (portion: Portion) => {
       if (config.askSaveDir && !initialOutDir) {
@@ -409,10 +487,12 @@ function AppContent({
           void startDirectBake(stage.directTarget.url, stage.directTarget.filename, resolved)
         } else if (stage.torrentTarget) {
           void startTorrentBake(stage.torrentTarget.target, stage.torrentTarget.title, resolved)
+        } else if (stage.archiveTarget) {
+          void startArchiveBake(stage.archiveTarget.title, stage.archiveTarget.items, resolved)
         }
       }
     },
-    [stage, startBake, startDirectBake, startTorrentBake],
+    [stage, startBake, startDirectBake, startTorrentBake, startArchiveBake],
   )
 
   const probeSingle = useCallback(
@@ -479,6 +559,39 @@ function AppContent({
             url: inspection.url,
           })
           setHistory(addToHistory(inspection.url))
+          return
+        }
+
+        if (inspection.type === 'archive') {
+          const {post} = inspection
+          setUrl(post.webpage_url)
+          setPlatform(identifySite(post.webpage_url))
+          setHistory(addToHistory(post.webpage_url))
+
+          if (post.files.length === 1) {
+            setStage({
+              name: 'direct_prompt',
+              filename: post.files[0]!.name,
+              url: post.files[0]!.url,
+            })
+            return
+          }
+
+          setArchivePost(post)
+          const archivePortions: Portion[] = [
+            {
+              kind: 'video',
+              label: `📦 all files (${post.files.length} items) · ${post.title}`,
+              ytdlpArgs: [],
+            },
+            ...post.files.map(f => ({
+              kind: 'video' as const,
+              label: `📄 ${f.name}`,
+              ytdlpArgs: [],
+            })),
+          ]
+          setPortions(archivePortions)
+          setStage({name: 'selecting'})
           return
         }
 
@@ -552,8 +665,10 @@ function AppContent({
       } else if (stage.name === 'dest_prompt') {
         if (isCustomDirInput) {
           setIsCustomDirInput(false)
-        } else {
+        } else if (portions.length > 0) {
           setStage({name: 'selecting'})
+        } else {
+          resetToInput()
         }
       } else if (
         stage.name === 'selecting' ||
@@ -716,16 +831,7 @@ function AppContent({
                   ]}
                   onSelect={item => {
                     if (item.value === 'download') {
-                      if (config.askSaveDir && !initialOutDir) {
-                        setIsCustomDirInput(false)
-                        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
-                        setStage({
-                          name: 'dest_prompt',
-                          directTarget: {url: stage.url, filename: stage.filename},
-                        })
-                      } else {
-                        void startDirectBake(stage.url, stage.filename)
-                      }
+                      triggerDirectDownload(stage.url, stage.filename)
                     } else {
                       setStage({name: 'input'})
                     }
@@ -824,12 +930,21 @@ function AppContent({
             <>
               <Box flexDirection="column" alignItems="center" width={panelWidth}>
                 <Text bold>
-                  {truncate(isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Media', panelWidth)}
+                  {truncate(
+                    archivePost
+                      ? archivePost.title
+                      : isPlaylistMode && playlistMeta
+                        ? playlistMeta.title
+                        : meta?.title ?? 'Media',
+                    panelWidth,
+                  )}
                 </Text>
                 <Text dimColor={palette.dimAccent}>
-                  {(isPlaylistMode && playlistMeta
-                    ? [playlistMeta.uploader, `${playlistMeta.trackCount} tracks`, platform?.label]
-                    : [meta?.uploader, meta?.duration ? formatDuration(meta.duration) : '', platform?.label]
+                  {(archivePost
+                    ? [archivePost.service, archivePost.user, `${archivePost.files.length} files`, platform?.label]
+                    : isPlaylistMode && playlistMeta
+                      ? [playlistMeta.uploader, `${playlistMeta.trackCount} tracks`, platform?.label]
+                      : [meta?.uploader, meta?.duration ? formatDuration(meta.duration) : '', platform?.label]
                   )
                     .filter(Boolean)
                     .join(' · ')}
@@ -841,10 +956,25 @@ function AppContent({
                 )}
               </Box>
               <Gap />
-              <BunCard title={isPlaylistMode ? 'playlist format' : 'format'} width={panelWidth}>
+              <BunCard
+                title={archivePost ? 'files to download' : isPlaylistMode ? 'playlist format' : 'format'}
+                width={panelWidth}
+              >
                 <SelectInput
                   items={portions.map(p => ({label: p.label, value: p}))}
-                  onSelect={item => triggerPortionDownload(item.value)}
+                  onSelect={item => {
+                    if (archivePost) {
+                      const idx = portions.findIndex(p => p === item.value)
+                      if (idx <= 0) {
+                        triggerArchiveDownload(archivePost.title, archivePost.files)
+                      } else {
+                        const file = archivePost.files[idx - 1]
+                        if (file) triggerDirectDownload(file.url, file.name)
+                      }
+                    } else {
+                      triggerPortionDownload(item.value)
+                    }
+                  }}
                   indicatorComponent={PortionIndicator}
                   itemComponent={PortionItem}
                 />
@@ -858,13 +988,21 @@ function AppContent({
                 <Text bold>
                   {truncate(
                     stage.portion
-                      ? (isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Download')
-                      : stage.directTarget?.filename ?? stage.torrentTarget?.title ?? 'Download',
+                      ? (archivePost
+                          ? archivePost.title
+                          : isPlaylistMode && playlistMeta
+                            ? playlistMeta.title
+                            : meta?.title ?? 'Download')
+                      : stage.archiveTarget?.title ?? stage.directTarget?.filename ?? stage.torrentTarget?.title ?? 'Download',
                     panelWidth,
                   )}
                 </Text>
                 <Text dimColor={palette.dimAccent}>
-                  {stage.portion ? stage.portion.label : 'select destination folder'}
+                  {stage.portion
+                    ? stage.portion.label
+                    : stage.archiveTarget
+                      ? `${stage.archiveTarget.items.length} files (will be saved into subfolder)`
+                      : 'select destination folder'}
                 </Text>
               </Box>
               <Gap />
