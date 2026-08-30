@@ -54,7 +54,7 @@ export async function bakeVideo(
   const outputTemplate = opts.isPlaylist
     ? path.join(
         opts.outputDir,
-        '%(playlist_title)s',
+        '%(playlist_title,playlist)s',
         '%(playlist_index)02d - %(title)s.%(ext)s',
       )
     : path.join(
@@ -76,7 +76,16 @@ export async function bakeVideo(
   const args = [
     ...(opts.cachedJsonPath && !opts.isPlaylist ? ['--load-info-json', opts.cachedJsonPath] : [opts.url]),
     ...portionArgs,
-    ...(opts.isPlaylist ? ['--yes-playlist', '--ignore-errors'] : ['--no-playlist']),
+    ...(opts.isPlaylist
+      ? [
+          '--yes-playlist',
+          '--ignore-errors',
+          '--parse-metadata',
+          'playlist_title:(?i)^(?:album|ep|single)\\s*[-:–—]\\s*(?P<playlist_title>.+)$',
+          '--parse-metadata',
+          'playlist:(?i)^(?:album|ep|single)\\s*[-:–—]\\s*(?P<playlist>.+)$',
+        ]
+      : ['--no-playlist']),
     '--no-warnings',
     '--newline',
     '--no-quiet',
