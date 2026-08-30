@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import path from 'node:path'
 import test from 'node:test'
 import {formatBytes, formatDuration, formatSpeed, formatEta, truncate, shortenPath, resolveUserPath, wrapText} from './units.js'
 
@@ -37,14 +38,14 @@ test('truncate clips long text with ellipsis and handles CJK width', () => {
 
 test('shortenPath replaces homedir with ~ and truncates', () => {
   assert.equal(shortenPath('/home/user/Downloads/file.mp4', '/home/user'), '~/Downloads/file.mp4')
-  assert.equal(shortenPath('/other/path/file.mp4', '/home/user'), '/other/path/file.mp4')
+  assert.equal(shortenPath('/other/path/file.mp4', '/home/user'), path.normalize('/other/path/file.mp4'))
 })
 
 test('resolveUserPath expands tilde across platforms', () => {
-  const fakeHome = '/mock/home/user'
-  assert.equal(resolveUserPath('~/Music', fakeHome), '/mock/home/user/Music')
-  assert.equal(resolveUserPath('~', fakeHome), '/mock/home/user')
-  assert.equal(resolveUserPath('/absolute/path', fakeHome), '/absolute/path')
+  const fakeHome = path.resolve('/mock/home/user')
+  assert.equal(resolveUserPath('~/Music', fakeHome), path.resolve(fakeHome, 'Music'))
+  assert.equal(resolveUserPath('~', fakeHome), fakeHome)
+  assert.equal(resolveUserPath(fakeHome, fakeHome), fakeHome)
 })
 
 test('wrapText breaks long text into lines', () => {
