@@ -113,8 +113,12 @@ export async function probeArchivePost(
       for (const att of post.attachments) addFile(att)
     }
 
+    const flagged = (json.props as {flagged?: string} | undefined)?.flagged
+    const isExpired = typeof flagged === 'string' && flagged.includes('expired')
     const rawTitle = (post.title || `${service} post by ${user}`).trim()
-    const cleanTitle = rawTitle.replace(/[/\\?%*:|"<>]/g, '_') || 'Archive Post'
+    const cleanTitle =
+      (isExpired ? `[Expired] ${rawTitle}` : rawTitle).replace(/[/\\?%*:|"<>]/g, '_') ||
+      'Archive Post'
 
     return {
       title: cleanTitle,

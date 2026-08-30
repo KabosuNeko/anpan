@@ -119,9 +119,9 @@ export function bakeDirectDownload(
     '1M',
     '-j',
     String(c),
-    '--connect-timeout=8',
-    '--timeout=15',
-    '--max-tries=3',
+    '--connect-timeout=6',
+    '--timeout=10',
+    '--max-tries=2',
     '--retry-wait=1',
     '--summary-interval=1',
     '--auto-file-renaming=false',
@@ -195,9 +195,9 @@ export async function bakeBatchDownload(
     '1M',
     '-j',
     String(c),
-    '--connect-timeout=8',
-    '--timeout=15',
-    '--max-tries=3',
+    '--connect-timeout=6',
+    '--timeout=10',
+    '--max-tries=2',
     '--retry-wait=1',
     '--summary-interval=1',
     '--auto-file-renaming=false',
@@ -224,6 +224,7 @@ function runAria2Process(
       new Promise((resolve, reject) => {
         const child = spawn(aria2cBin, args, {signal})
     let stderr = ''
+    let lastAriaError = ''
     let resolvedFile = fallbackFilename ? path.join(outputDir, fallbackFilename) : ''
     let buffer = ''
 
@@ -235,6 +236,11 @@ function runAria2Process(
       for (const rawLine of lines) {
         const line = rawLine.trim()
         if (!line) continue
+
+        const errMatch = /^\[ERROR\]\s*(.+)$/.exec(line)
+        if (errMatch) {
+          lastAriaError = errMatch[1]!
+        }
 
         const aria = parseAriaProgressLine(line)
         if (aria) {
@@ -275,8 +281,19 @@ function runAria2Process(
       } else if (code === 0) {
         resolve(outputDir)
       } else {
-        reject(new Error(stderr.trim() || `aria2c exited with code ${code}.`))
+        reject(new Error(formatAriaError(code ?? 1, lastAriaError || stderr)))
       }
     })
   }))
+}
+
+function formatAriaError(code: number, rawErr: string): string {
+  if (code === 2) {
+    return 'Connection timed out. Storage server (n1-n4) is unresponsive or blocked by network/ISP. Try using a VPN or 1.1.1.1 WARP.'
+  }
+  if (code === 3) return 'File not found on remote server (HTTP 404).'
+  if (code === 9) return 'Not enough disk space available.'
+  if (code === 19) return 'DNS error: failed to resolve server hostname.'
+  if (code === 24) return 'HTTP authorization failed (HTTP 403 Forbidden).'
+  return rawErr.trim() || `aria2c exited with code ${code}.`
 }
