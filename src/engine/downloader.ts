@@ -1,6 +1,7 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import {hasMutagen} from './binary.js'
 import {parseAriaProgressLine} from './aria2c.js'
 import type {Portion} from './extractor.js'
 
@@ -61,9 +62,20 @@ export async function bakeVideo(
         `%(title)s${opts.timeRange ? ` [${opts.timeRange.replace(/[:*]/g, '.')}]` : ''}.%(ext)s`,
       )
 
+  // Opus and Ogg require python-mutagen for embedding thumbnails in yt-dlp.
+  // If mutagen is not installed, yt-dlp hard-crashes. We gracefully drop --embed-thumbnail
+  // so the download succeeds with full audio quality and metadata.
+  const isOpusOrOgg =
+    opts.portion.label.toLowerCase().includes('opus') ||
+    opts.portion.label.toLowerCase().includes('ogg')
+  let portionArgs = opts.portion.ytdlpArgs
+  if (isOpusOrOgg && !(await hasMutagen())) {
+    portionArgs = portionArgs.filter(arg => arg !== '--embed-thumbnail')
+  }
+
   const args = [
     ...(opts.cachedJsonPath && !opts.isPlaylist ? ['--load-info-json', opts.cachedJsonPath] : [opts.url]),
-    ...opts.portion.ytdlpArgs,
+    ...portionArgs,
     ...(opts.isPlaylist ? ['--yes-playlist', '--ignore-errors'] : ['--no-playlist']),
     '--no-warnings',
     '--newline',
