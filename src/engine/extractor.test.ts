@@ -22,11 +22,9 @@ test('extractPortions lists all available resolutions without 8-tier truncation'
 
   const portions = extractPortions(meta, {videoContainer: 'mkv', audioFormat: 'flac'})
 
-  // 9 video resolutions + 2 audio choices (flac + mp3) = 11 portions
   const videoPortions = portions.filter(p => p.kind === 'video')
   assert.equal(videoPortions.length, 9)
 
-  // Verify tags and container
   assert.match(videoPortions[0]!.label, /^4320p60 · mkv/)
   assert.match(videoPortions[1]!.label, /^2160p60 HDR · mkv/)
   assert.match(videoPortions[2]!.label, /^1440p60 · mkv/)
@@ -34,13 +32,11 @@ test('extractPortions lists all available resolutions without 8-tier truncation'
   assert.match(videoPortions[4]!.label, /^720p · mkv/)
   assert.match(videoPortions[8]!.label, /^144p · mkv/)
 
-  // Verify size tags exist
   for (const vp of videoPortions) {
     assert.match(vp.label, /~[\d.]+ (KB|MB|GB)/)
     assert.deepEqual(vp.ytdlpArgs.slice(-2), ['--merge-output-format', 'mkv'])
   }
 
-  // Audio portions: native m4a + configured flac + mp3 fallback = 3
   const audioPortions = portions.filter(p => p.kind === 'audio')
   assert.equal(audioPortions.length, 3)
   assert.match(audioPortions[0]!.label, /^audio only · m4a \(aac\)/)
@@ -67,7 +63,7 @@ test('extractPortions includes native opus stream when present (e.g. YouTube / Y
 
 test('extractPlaylistPortions honors videoContainer and audioFormat', () => {
   const plPortions = extractPlaylistPortions({videoContainer: 'webm', audioFormat: 'm4a'})
-  assert.equal(plPortions.length, 4) // m4a, opus fallback, mp3 fallback, webm best
+  assert.equal(plPortions.length, 4)
   assert.match(plPortions[0]!.label, /all tracks · m4a/)
   assert.match(plPortions[1]!.label, /all tracks · opus \(original audio\)/)
   assert.match(plPortions[2]!.label, /all tracks · mp3/)

@@ -62,7 +62,7 @@ export function parseUrlInput(input: string): ParsedInput {
   }
 }
 
-export function isLikelyUrl(input: string): boolean {
+function isLikelyUrl(input: string): boolean {
   try {
     const {cleanUrl} = parseUrlInput(input)
     const u = new URL(cleanUrl)

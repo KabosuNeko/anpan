@@ -66,12 +66,3 @@ export function tapTargetAt(x: number, y: number, targets: TapTarget[]): TapTarg
 export function locateFrameRow(text: string): number {
   return capturedLines.findIndex(l => l.includes(text))
 }
-
-/** 1-based [first, last] columns of the visible text on a frame row. */
-export function frameRowBounds(row: number): [number, number] | undefined {
-  const line = capturedLines[row]
-  if (!line) return undefined
-  const first = line.search(/\S/)
-  if (first === -1) return undefined
-  return [first + 1, line.trimEnd().length]
-}

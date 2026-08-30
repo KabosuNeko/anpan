@@ -18,11 +18,6 @@ export async function findAria2c(): Promise<string | undefined> {
   })
 }
 
-// Build yt-dlp arguments to delegate socket downloading to aria2c.
-// -x: max connections per server
-// -s: split file into N segments across connections
-// -k 1M: minimum split size to avoid pointless chunk overhead on small transfers
-// -j: max concurrent downloads
 export function buildAria2cArgs(aria2cPath: string | undefined, connections = 16): string[] {
   if (!aria2cPath) return []
   const c = Math.max(1, Math.min(32, connections))
@@ -223,68 +218,68 @@ function runAria2Process(
     () =>
       new Promise((resolve, reject) => {
         const child = spawn(aria2cBin, args, {signal})
-    let stderr = ''
-    let lastAriaError = ''
-    let resolvedFile = fallbackFilename ? path.join(outputDir, fallbackFilename) : ''
-    let buffer = ''
+        let stderr = ''
+        let lastAriaError = ''
+        let resolvedFile = fallbackFilename ? path.join(outputDir, fallbackFilename) : ''
+        let buffer = ''
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString()
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+        child.stdout.on('data', (chunk: Buffer) => {
+          buffer += chunk.toString()
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (!line) continue
+          for (const rawLine of lines) {
+            const line = rawLine.trim()
+            if (!line) continue
 
-        const errMatch = /^\[ERROR\]\s*(.+)$/.exec(line)
-        if (errMatch) {
-          lastAriaError = errMatch[1]!
-        }
+            const errMatch = /^\[ERROR\]\s*(.+)$/.exec(line)
+            if (errMatch) {
+              lastAriaError = errMatch[1]!
+            }
 
-        const aria = parseAriaProgressLine(line)
-        if (aria) {
-          handlers.onProgress({
-            downloadedBytes: aria.downloadedBytes,
-            totalBytes: aria.totalBytes,
-            speed: aria.speed,
-            eta: aria.eta,
-            part: 0,
-            totalParts: 1,
-            connections: aria.connections,
-            seeders: aria.seeders,
-          })
-        }
+            const aria = parseAriaProgressLine(line)
+            if (aria) {
+              handlers.onProgress({
+                downloadedBytes: aria.downloadedBytes,
+                totalBytes: aria.totalBytes,
+                speed: aria.speed,
+                eta: aria.eta,
+                part: 0,
+                totalParts: 1,
+                connections: aria.connections,
+                seeders: aria.seeders,
+              })
+            }
 
-        const completeMatch = /\[NOTICE\] Download complete:\s*(.+)$/.exec(line)
-        if (completeMatch) {
-          resolvedFile = completeMatch[1]!.trim()
-        }
+            const completeMatch = /\[NOTICE\] Download complete:\s*(.+)$/.exec(line)
+            if (completeMatch) {
+              resolvedFile = completeMatch[1]!.trim()
+            }
 
-        // aria2c prints a summary row "GID|STATUS|AVG SPEED|PATH/URI" upon completion
-        const tableMatch = /^[0-9a-fA-F]+\|OK\s*\|\s*[^|]+\|(.+)$/.exec(line)
-        if (tableMatch) {
-          resolvedFile = tableMatch[1]!.trim()
-        }
-      }
-    })
+            const tableMatch = /^[0-9a-fA-F]+\|OK\s*\|\s*[^|]+\|(.+)$/.exec(line)
+            if (tableMatch) {
+              resolvedFile = tableMatch[1]!.trim()
+            }
+          }
+        })
 
-    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk))
-    child.on('error', reject)
-    child.on('close', code => {
-      if (signal?.aborted) {
-        reject(new Error('Download cancelled.'))
-        return
-      }
-      if (code === 0 && resolvedFile) {
-        resolve(resolvedFile)
-      } else if (code === 0) {
-        resolve(outputDir)
-      } else {
-        reject(new Error(formatAriaError(code ?? 1, lastAriaError || stderr)))
-      }
-    })
-  }))
+        child.stderr.on('data', (chunk: Buffer) => (stderr += chunk))
+        child.on('error', reject)
+        child.on('close', code => {
+          if (signal?.aborted) {
+            reject(new Error('Download cancelled.'))
+            return
+          }
+          if (code === 0 && resolvedFile) {
+            resolve(resolvedFile)
+          } else if (code === 0) {
+            resolve(outputDir)
+          } else {
+            reject(new Error(formatAriaError(code ?? 1, lastAriaError || stderr)))
+          }
+        })
+      }),
+  )
 }
 
 function formatAriaError(code: number, rawErr: string): string {

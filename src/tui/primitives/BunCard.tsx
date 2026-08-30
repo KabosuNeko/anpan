@@ -1,8 +1,6 @@
-import React, {type ReactNode} from 'react'
+import {type ReactNode} from 'react'
 import {Box, Text} from 'ink'
 import {useAnpanTheme} from '../theme/palette.js'
-
-/** Rounded border panel with the title sitting on the top border. */
 export function BunCard({title, width, children}: {title: string; width: number; children: ReactNode}) {
   const palette = useAnpanTheme()
   const inner = width - 2

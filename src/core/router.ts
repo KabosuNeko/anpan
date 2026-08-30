@@ -62,7 +62,7 @@ export function parseMagnetName(magnetUri: string): string {
   }
 }
 
-export function extractFilenameFromUrl(rawUrl: string): string {
+function extractFilenameFromUrl(rawUrl: string): string {
   try {
     const u = new URL(rawUrl)
     const base = path.basename(u.pathname)
@@ -133,8 +133,6 @@ export async function inspectTarget(
     }
   }
 
-  // Ambiguous URL: fast HEAD to check Content-Disposition / binary Content-Type.
-  // Falls back to video engine on timeout or HTML response.
   try {
     const headSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(1500)]) : AbortSignal.timeout(1500)
     const resp = await fetch(cleanUrl, {method: 'HEAD', signal: headSignal})
@@ -163,9 +161,7 @@ export async function inspectTarget(
         }
       }
     }
-  } catch {
-    // network timeout or HEAD not allowed
-  }
+  } catch {}
 
   return {
     type: 'video',

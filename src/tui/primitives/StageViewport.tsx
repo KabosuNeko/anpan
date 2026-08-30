@@ -1,4 +1,4 @@
-import React, {useEffect, useState, type ReactNode} from 'react'
+import {useEffect, useState, type ReactNode} from 'react'
 import {Box, useStdout} from 'ink'
 
 export function StageViewport({children}: {children: ReactNode}) {
@@ -18,8 +18,6 @@ export function StageViewport({children}: {children: ReactNode}) {
     }
   }, [stdout])
 
-  // height must be rows - 1: Ink appends a trailing newline to the render buffer,
-  // so filling the full terminal height causes vertical jitter/scrolling on every frame.
   return (
     <Box
       width={size.columns}

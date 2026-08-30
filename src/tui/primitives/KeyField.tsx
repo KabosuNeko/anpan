@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react'
+import {useRef, useState} from 'react'
 import {Text, useInput} from 'ink'
 import {stripPointerReports} from '../events/usePointer.js'
 import {useAnpanTheme} from '../theme/palette.js'
@@ -132,7 +132,6 @@ export function KeyField({
       return
     }
 
-    // Readline / Emacs shortcuts
     if (key.ctrl) {
       if (input === 'a') {setCursorState(0); setAnchorState(null); return}
       if (input === 'e') {setCursorState(value.length); setAnchorState(null); return}
@@ -183,7 +182,6 @@ export function KeyField({
     }
   })
 
-  // Keep cursor visible inside the viewport window
   if (cursor < offsetRef.current) offsetRef.current = cursor
   if (cursor > offsetRef.current + width - 1) offsetRef.current = cursor - width + 1
   const offset = offsetRef.current

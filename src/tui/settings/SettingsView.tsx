@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import {useState} from 'react'
 import os from 'node:os'
 import path from 'node:path'
 import {Box, Text, useInput} from 'ink'

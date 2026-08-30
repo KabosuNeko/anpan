@@ -1,14 +1,8 @@
-import React, {type ReactNode} from 'react'
+import {type ReactNode} from 'react'
 import {Box, Text} from 'ink'
 import {useAnpanTheme} from '../theme/palette.js'
 
 const buttonWidth = (label: string) => label.length + 4
-
-/**
- * Single-line input frame with integrated action button.
- * Uses exact column math to guarantee top, middle, and bottom borders
- * align with zero pixel jitter or font-wrapping issues.
- */
 export function TrayInput({
   title,
   width: totalWidth,
@@ -32,12 +26,10 @@ export function TrayInput({
 
   return (
     <Box flexDirection="column" width={totalWidth}>
-      {/* Top Border - all spans on one line without JSX whitespace */}
       <Text>
         <Text dimColor={palette.dimAccent}>{'╭─ '}</Text><Text>{title}</Text><Text dimColor={palette.dimAccent}>{` ${'─'.repeat(leftInner)}`}</Text>{actionLabel ? <Text dimColor={palette.dimAccent}>{`┬${'─'.repeat(btnW - 2)}╮`}</Text> : <Text dimColor={palette.dimAccent}>{'╮'}</Text>}
       </Text>
 
-      {/* Middle Row */}
       <Box width={totalWidth} height={1}>
         <Box width={leftW} height={1} overflow="hidden">
           <Text dimColor={palette.dimAccent}>{'│ > '}</Text>
@@ -58,7 +50,6 @@ export function TrayInput({
         )}
       </Box>
 
-      {/* Bottom Border */}
       <Text dimColor={palette.dimAccent}>
         {`╰${'─'.repeat(leftW - 1)}`}
         {actionLabel ? `┴${'─'.repeat(btnW - 2)}╯` : '╯'}
