@@ -31,6 +31,14 @@ export function binaryResponds(cmd: string, args: string[]): Promise<boolean> {
   })
 }
 
+let cachedMutagen: boolean | undefined
+
+export async function hasMutagen(): Promise<boolean> {
+  if (cachedMutagen !== undefined) return cachedMutagen
+  cachedMutagen = await binaryResponds('python3', ['-c', 'import mutagen'])
+  return cachedMutagen
+}
+
 // Resolves a usable yt-dlp executable: PATH -> ~/.anpan/bin cache -> GitHub release download.
 export async function ensureYtDlpBinary(
   onStatus: (message: string) => void,
