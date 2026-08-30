@@ -33,34 +33,48 @@ export function binaryResponds(cmd: string, args: string[]): Promise<boolean> {
 
 let cachedMutagen: boolean | undefined
 
-export async function hasMutagen(): Promise<boolean> {
+export async function hasMutagen(ytdlpPath?: string): Promise<boolean> {
+  if (ytdlpPath && (ytdlpPath.includes('.anpan') || ytdlpPath.includes('yt-dlp_'))) return true
+  const localBin = path.join(ANPAN_BIN_DIR, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
+  if (await binaryResponds(localBin, ['--version'])) return true
+
   if (cachedMutagen !== undefined) return cachedMutagen
   cachedMutagen = await binaryResponds('python3', ['-c', 'import mutagen'])
   return cachedMutagen
 }
 
-// Resolves a usable yt-dlp executable: PATH -> ~/.anpan/bin cache -> GitHub release download.
+// Resolves a usable yt-dlp executable:
+// Prioritizes ~/.anpan/bin cache (standalone build with mutagen/brotli/crypto bundled)
+// -> system yt-dlp if it has mutagen
+// -> auto-downloads official standalone binary to ~/.anpan/bin (zero manual dependencies!).
 export async function ensureYtDlpBinary(
   onStatus: (message: string) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  if (await binaryResponds('yt-dlp', ['--version'])) return 'yt-dlp'
-
   const localBin = path.join(ANPAN_BIN_DIR, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
   if (await binaryResponds(localBin, ['--version'])) return localBin
 
-  onStatus('fetching yt-dlp binary…')
+  const hasSystemYtDlp = await binaryResponds('yt-dlp', ['--version'])
+  const sysMutagen = await binaryResponds('python3', ['-c', 'import mutagen'])
+  if (hasSystemYtDlp && sysMutagen) return 'yt-dlp'
+
+  onStatus('fetching self-contained yt-dlp (bundled dependencies)…')
   await fs.mkdir(ANPAN_BIN_DIR, {recursive: true})
 
   const url = `${RELEASE_BASE}/${ytDlpAssetName()}`
-  const response = await fetch(url, {signal})
-  if (!response.ok || !response.body) {
-    throw new Error(`Could not download yt-dlp (${response.status}). Check your connection and try again.`)
+  try {
+    const response = await fetch(url, {signal})
+    if (response.ok && response.body) {
+      const tmp = `${localBin}.download`
+      await pipeline(Readable.fromWeb(response.body as never), createWriteStream(tmp), {signal})
+      await fs.chmod(tmp, 0o755)
+      await fs.rename(tmp, localBin)
+      return localBin
+    }
+  } catch {
+    // If download fails or offline, fallback to system yt-dlp
   }
 
-  const tmp = `${localBin}.download`
-  await pipeline(Readable.fromWeb(response.body as never), createWriteStream(tmp), {signal})
-  await fs.chmod(tmp, 0o755)
-  await fs.rename(tmp, localBin)
-  return localBin
+  if (hasSystemYtDlp) return 'yt-dlp'
+  throw new Error('Could not download standalone yt-dlp. Please check your internet connection.')
 }
