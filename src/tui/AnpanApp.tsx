@@ -48,8 +48,6 @@ const DONE_LABEL = '↵ download another'
 const TAGLINE = 'feed a link, bake a file.'
 const SUPPORTED_HINT = 'youtube · x · instagram · soundcloud · torrent · and more'
 
-
-
 function PortionIndicator({isSelected}: IndicatorProps) {
   const palette = useAnpanTheme()
   return (

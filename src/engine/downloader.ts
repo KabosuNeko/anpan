@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {hasMutagen} from './binary.js'
 import {parseAriaProgressLine} from './aria2c.js'
+import {cleanErrorOutput} from './extractor.js'
 import type {Portion} from './extractor.js'
 
 export type BakeProgress = {
@@ -245,11 +246,3 @@ function parseNumber(value: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
-function cleanErrorOutput(stderr: string): string {
-  const lines = stderr
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.startsWith('ERROR:'))
-  const last = lines.at(-1)
-  return last ? last.replace(/^ERROR:\s*(\[[^\]]+\]\s*)?/, '') : ''
-}
