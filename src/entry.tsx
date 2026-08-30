@@ -14,17 +14,19 @@ const HELP = `
   (youtube · x · instagram · soundcloud · torrent · and more)
 
   Usage
-    $ anpan [url|magnet|file]
+    $ anpan [url|magnet|file] [options]
 
   Examples
     $ anpan https://youtu.be/dQw4w9WgXcQ
+    $ anpan https://youtu.be/dQw4w9WgXcQ -o ~/Videos
     $ anpan "magnet:?xt=urn:btih:..."
     $ anpan https://example.com/nixos-minimal.iso
     $ anpan                 (prompts for input)
 
   Options
-    -h, --help      show this help
-    -v, --version   show version
+    -o, --output <dir>  specify download output directory
+    -h, --help          show this help
+    -v, --version       show version
 
   Downloads are saved to ~/Downloads (configure via ^s).
   Powered by yt-dlp & aria2c.
@@ -48,6 +50,7 @@ if (args.version) {
 }
 
 const initialUrl = args.initialUrl
+const initialOutDir = args.initialOutDir
 const isTTY = Boolean(process.stdout.isTTY)
 
 let clipboardUrl: string | undefined
@@ -78,6 +81,7 @@ let outcome: Outcome = {}
 const {waitUntilExit} = render(
   <AnpanApp
     initialUrl={initialUrl}
+    initialOutDir={initialOutDir}
     clipboardUrl={clipboardUrl}
     onOutcome={result => (outcome = result)}
   />,

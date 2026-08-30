@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import os from 'node:os'
+import path from 'node:path'
 import {Box, Text, useApp, useInput, useStdout} from 'ink'
 import SelectInput, {type IndicatorProps, type ItemProps} from 'ink-select-input'
 import Spinner from 'ink-spinner'
@@ -98,6 +99,12 @@ type Stage =
   | {name: 'torrent_prompt'; title: string; target: string}
   | {name: 'selecting'}
   | {
+      name: 'dest_prompt'
+      portion?: Portion
+      directTarget?: {url: string; filename: string}
+      torrentTarget?: {target: string; title: string}
+    }
+  | {
       name: 'baking'
       portion?: Portion
       targetTitle?: string
@@ -141,6 +148,12 @@ const HINTS: Record<Stage['name'], Array<[string, string]>> = {
     ['esc', 'back'],
     ['^c', 'quit'],
   ],
+  dest_prompt: [
+    ['↑↓', 'choose'],
+    ['↵', 'confirm'],
+    ['esc', 'back'],
+    ['^c', 'quit'],
+  ],
   baking: [
     ['esc', 'cancel'],
     ['^c', 'quit'],
@@ -158,6 +171,7 @@ const HINTS: Record<Stage['name'], Array<[string, string]>> = {
 
 type AnpanAppProps = {
   initialUrl?: string
+  initialOutDir?: string
   clipboardUrl?: string
   onOutcome: (outcome: Outcome) => void
 }
@@ -172,6 +186,7 @@ export function AnpanApp(props: AnpanAppProps) {
 
 function AppContent({
   initialUrl,
+  initialOutDir,
   clipboardUrl,
   onOutcome,
 }: AnpanAppProps) {
@@ -188,6 +203,8 @@ function AppContent({
   const [timeLabel, setTimeLabel] = useState<string | undefined>()
   const [isPlaylistMode, setIsPlaylistMode] = useState(false)
   const [playlistMeta, setPlaylistMeta] = useState<PlaylistMeta | null>(null)
+  const [isCustomDirInput, setIsCustomDirInput] = useState(false)
+  const [customDirInput, setCustomDirInput] = useState('')
 
   const [stage, setStage] = useState<Stage>(
     initialUrl
@@ -220,6 +237,7 @@ function AppContent({
     setTimeLabel(undefined)
     setIsPlaylistMode(false)
     setPlaylistMeta(null)
+    setIsCustomDirInput(false)
     setStage({name: 'input'})
   }, [])
 
@@ -231,8 +249,9 @@ function AppContent({
   }, [resetToInput])
 
   const startBake = useCallback(
-    async (portion: Portion) => {
+    async (portion: Portion, targetOutputDir?: string) => {
       cancel()
+      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
       setStage({name: 'baking', portion, processing: false})
 
       const ac = new AbortController()
@@ -251,9 +270,14 @@ function AppContent({
             url,
             cachedJsonPath,
             portion,
-            outputDir: config.outDir,
+            outputDir: effectiveOutDir,
             timeRange,
             isPlaylist: isPlaylistMode,
+            cookiesBrowser: config.cookiesBrowser,
+            subtitles: config.subtitles,
+            subLangs: config.subLangs,
+            sponsorBlock: config.sponsorBlock,
+            writeThumbnail: config.writeThumbnail,
           },
           {
             onProgress: progress =>
@@ -273,12 +297,13 @@ function AppContent({
         }
       }
     },
-    [cancel, url, cachedJsonPath, config, timeRange, isPlaylistMode, onOutcome],
+    [cancel, initialOutDir, config, url, cachedJsonPath, isPlaylistMode, timeRange, onOutcome],
   )
 
   const startDirectBake = useCallback(
-    async (targetUrl: string, filename: string) => {
+    async (targetUrl: string, filename: string, targetOutputDir?: string) => {
       cancel()
+      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
       setStage({name: 'baking', targetTitle: filename, processing: false})
 
       const ac = new AbortController()
@@ -293,7 +318,7 @@ function AppContent({
             aria2cBin: bin,
             url: targetUrl,
             filename,
-            outputDir: config.outDir,
+            outputDir: effectiveOutDir,
             connections: config.connections,
           },
           {
@@ -312,12 +337,13 @@ function AppContent({
         }
       }
     },
-    [cancel, config.outDir, config.connections, onOutcome],
+    [cancel, initialOutDir, config.outDir, config.connections, onOutcome],
   )
 
   const startTorrentBake = useCallback(
-    async (target: string, name: string) => {
+    async (target: string, name: string, targetOutputDir?: string) => {
       cancel()
+      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
       setStage({name: 'baking', targetTitle: name, processing: false})
 
       const ac = new AbortController()
@@ -331,7 +357,7 @@ function AppContent({
           {
             aria2cBin: bin,
             target,
-            outputDir: config.outDir,
+            outputDir: effectiveOutDir,
           },
           {
             onProgress: progress =>
@@ -349,7 +375,41 @@ function AppContent({
         }
       }
     },
-    [cancel, config.outDir, onOutcome],
+    [cancel, initialOutDir, config.outDir, onOutcome],
+  )
+
+  const triggerPortionDownload = useCallback(
+    (portion: Portion) => {
+      if (config.askSaveDir && !initialOutDir) {
+        setIsCustomDirInput(false)
+        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
+        setStage({name: 'dest_prompt', portion})
+      } else {
+        void startBake(portion)
+      }
+    },
+    [config.askSaveDir, config.outDir, initialOutDir, startBake],
+  )
+
+  const confirmDestAndDownload = useCallback(
+    (dir: string) => {
+      let cleaned = dir.trim()
+      if (cleaned.startsWith('~')) {
+        cleaned = path.join(os.homedir(), cleaned.slice(1))
+      }
+      const resolved = path.resolve(cleaned)
+
+      if (stage.name === 'dest_prompt') {
+        if (stage.portion) {
+          void startBake(stage.portion, resolved)
+        } else if (stage.directTarget) {
+          void startDirectBake(stage.directTarget.url, stage.directTarget.filename, resolved)
+        } else if (stage.torrentTarget) {
+          void startTorrentBake(stage.torrentTarget.target, stage.torrentTarget.title, resolved)
+        }
+      }
+    },
+    [stage, startBake, startDirectBake, startTorrentBake],
   )
 
   const probeSingle = useCallback(
@@ -358,25 +418,29 @@ function AppContent({
       const result = await probeVideo(bin, targetUrl, signal)
       setMeta(result.meta)
       setCachedJsonPath(result.cachedJsonPath)
-      const resolvedPortions = extractPortions(result.meta, {embedMetadata: config.embedMetadata})
+      const resolvedPortions = extractPortions(result.meta, {
+        embedMetadata: config.embedMetadata,
+        videoContainer: config.videoContainer,
+        audioFormat: config.audioFormat,
+      })
       setPortions(resolvedPortions)
       setHistory(addToHistory(targetUrl))
 
       if (config.preferQuality === 'best' && resolvedPortions[0]) {
-        void startBake(resolvedPortions[0])
+        triggerPortionDownload(resolvedPortions[0])
       } else if (config.preferQuality === 'audio') {
         const audioChoice = resolvedPortions.find(p => p.kind === 'audio')
-        if (audioChoice) void startBake(audioChoice)
+        if (audioChoice) triggerPortionDownload(audioChoice)
         else setStage({name: 'selecting'})
       } else if (config.preferQuality === '1080p') {
         const p1080 = resolvedPortions.find(p => p.label.startsWith('1080p'))
-        if (p1080) void startBake(p1080)
+        if (p1080) triggerPortionDownload(p1080)
         else setStage({name: 'selecting'})
       } else {
         setStage({name: 'selecting'})
       }
     },
-    [config, startBake],
+    [config, triggerPortionDownload],
   )
 
   const startProbe = useCallback(
@@ -482,6 +546,12 @@ function AppContent({
     if (key.escape) {
       if (stage.name === 'probing' || stage.name === 'baking') {
         cancel()
+      } else if (stage.name === 'dest_prompt') {
+        if (isCustomDirInput) {
+          setIsCustomDirInput(false)
+        } else {
+          setStage({name: 'selecting'})
+        }
       } else if (
         stage.name === 'selecting' ||
         stage.name === 'input' ||
@@ -643,7 +713,16 @@ function AppContent({
                   ]}
                   onSelect={item => {
                     if (item.value === 'download') {
-                      void startDirectBake(stage.url, stage.filename)
+                      if (config.askSaveDir && !initialOutDir) {
+                        setIsCustomDirInput(false)
+                        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
+                        setStage({
+                          name: 'dest_prompt',
+                          directTarget: {url: stage.url, filename: stage.filename},
+                        })
+                      } else {
+                        void startDirectBake(stage.url, stage.filename)
+                      }
                     } else {
                       setStage({name: 'input'})
                     }
@@ -674,7 +753,16 @@ function AppContent({
                   ]}
                   onSelect={item => {
                     if (item.value === 'download') {
-                      void startTorrentBake(stage.target, stage.title)
+                      if (config.askSaveDir && !initialOutDir) {
+                        setIsCustomDirInput(false)
+                        setCustomDirInput(shortenPath(config.outDir, os.homedir()))
+                        setStage({
+                          name: 'dest_prompt',
+                          torrentTarget: {target: stage.target, title: stage.title},
+                        })
+                      } else {
+                        void startTorrentBake(stage.target, stage.title)
+                      }
                     } else {
                       setStage({name: 'input'})
                     }
@@ -708,7 +796,11 @@ function AppContent({
                   onSelect={item => {
                     if (item.value === 'full') {
                       setIsPlaylistMode(true)
-                      const plPortions = extractPlaylistPortions({embedMetadata: config.embedMetadata})
+                      const plPortions = extractPlaylistPortions({
+                        embedMetadata: config.embedMetadata,
+                        videoContainer: config.videoContainer,
+                        audioFormat: config.audioFormat,
+                      })
                       setPortions(plPortions)
                       setStage({name: 'selecting'})
                     } else {
@@ -749,10 +841,69 @@ function AppContent({
               <BunCard title={isPlaylistMode ? 'playlist format' : 'format'} width={panelWidth}>
                 <SelectInput
                   items={portions.map(p => ({label: p.label, value: p}))}
-                  onSelect={item => void startBake(item.value)}
+                  onSelect={item => triggerPortionDownload(item.value)}
                   indicatorComponent={PortionIndicator}
                   itemComponent={PortionItem}
                 />
+              </BunCard>
+            </>
+          )}
+
+          {stage.name === 'dest_prompt' && (
+            <>
+              <Box flexDirection="column" alignItems="center" width={panelWidth}>
+                <Text bold>
+                  {truncate(
+                    stage.portion
+                      ? (isPlaylistMode && playlistMeta ? playlistMeta.title : meta?.title ?? 'Download')
+                      : stage.directTarget?.filename ?? stage.torrentTarget?.title ?? 'Download',
+                    panelWidth,
+                  )}
+                </Text>
+                <Text dimColor={palette.dimAccent}>
+                  {stage.portion ? stage.portion.label : 'select destination folder'}
+                </Text>
+              </Box>
+              <Gap />
+              <BunCard title="choose save folder" width={panelWidth}>
+                {isCustomDirInput ? (
+                  <Box flexDirection="column" gap={0} width="100%">
+                    <Text dimColor={palette.dimAccent}>enter directory path (↵ confirm, esc back):</Text>
+                    <Box width={panelWidth - 8} height={1}>
+                      <KeyField
+                        value={customDirInput}
+                        onChange={setCustomDirInput}
+                        onSubmit={confirmDestAndDownload}
+                        width={panelWidth - 10}
+                      />
+                    </Box>
+                  </Box>
+                ) : (
+                  <SelectInput
+                    items={[
+                      {label: `[↵] ${shortenPath(config.outDir, os.homedir(), 28)} (default)`, value: config.outDir},
+                      ...(path.resolve(config.outDir) !== path.resolve(path.join(os.homedir(), 'Downloads'))
+                        ? [{label: '[D] ~/Downloads', value: path.join(os.homedir(), 'Downloads')}]
+                        : []),
+                      ...(path.resolve(config.outDir) !== path.resolve(path.join(os.homedir(), 'Videos'))
+                        ? [{label: '[V] ~/Videos', value: path.join(os.homedir(), 'Videos')}]
+                        : []),
+                      ...(path.resolve(config.outDir) !== path.resolve(process.cwd())
+                        ? [{label: `[C] Current folder (./)`, value: process.cwd()}]
+                        : []),
+                      {label: '[O] Custom path…', value: '__custom__'},
+                    ]}
+                    onSelect={item => {
+                      if (item.value === '__custom__') {
+                        setIsCustomDirInput(true)
+                      } else {
+                        confirmDestAndDownload(item.value)
+                      }
+                    }}
+                    indicatorComponent={PortionIndicator}
+                    itemComponent={PortionItem}
+                  />
+                )}
               </BunCard>
             </>
           )}

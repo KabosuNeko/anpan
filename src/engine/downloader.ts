@@ -28,36 +28,43 @@ const PROGRESS_TEMPLATE = `${PROGRESS_TAG}%(progress.downloaded_bytes)s|%(progre
 let activeChild: ChildProcess | undefined
 process.on('exit', () => activeChild?.kill('SIGTERM'))
 
+export type BakeVideoOptions = {
+  ytdlpBin: string
+  ffmpegLocation?: string
+  aria2cArgs?: string[]
+  url: string
+  cachedJsonPath?: string
+  portion: Portion
+  outputDir: string
+  timeRange?: string
+  isPlaylist?: boolean
+  cookiesBrowser?: string
+  subtitles?: 'off' | 'embed' | 'write'
+  subLangs?: string
+  sponsorBlock?: 'off' | 'remove' | 'mark'
+  writeThumbnail?: boolean
+}
+
 export function bakeVideo(
-  opts: {
-    ytdlpBin: string
-    ffmpegLocation?: string
-    aria2cArgs?: string[]
-    url: string
-    cachedJsonPath?: string
-    portion: Portion
-    outputDir: string
-    timeRange?: string
-    isPlaylist?: boolean
-  },
+  opts: BakeVideoOptions,
   handlers: BakeHandlers,
   signal?: AbortSignal,
 ): Promise<string> {
   const outputTemplate = opts.isPlaylist
     ? path.join(
         opts.outputDir,
-        '%(playlist_title|playlist)s',
-        '%(playlist_index)02d - %(title).60s.%(ext)s',
+        '%(playlist_title)s',
+        '%(playlist_index)02d - %(title)s.%(ext)s',
       )
     : path.join(
         opts.outputDir,
-        `%(title).60s${opts.timeRange ? ` [${opts.timeRange.replace(/[:*]/g, '.')}]` : ''}.%(ext)s`,
+        `%(title)s${opts.timeRange ? ` [${opts.timeRange.replace(/[:*]/g, '.')}]` : ''}.%(ext)s`,
       )
 
   const args = [
     ...(opts.cachedJsonPath && !opts.isPlaylist ? ['--load-info-json', opts.cachedJsonPath] : [opts.url]),
     ...opts.portion.ytdlpArgs,
-    ...(opts.isPlaylist ? ['--yes-playlist'] : ['--no-playlist']),
+    ...(opts.isPlaylist ? ['--yes-playlist', '--ignore-errors'] : ['--no-playlist']),
     '--no-warnings',
     '--newline',
     '--no-quiet',
@@ -77,6 +84,24 @@ export function bakeVideo(
   }
   if (opts.ffmpegLocation) args.push('--ffmpeg-location', opts.ffmpegLocation)
   if (opts.aria2cArgs) args.push(...opts.aria2cArgs)
+
+  // Configurable yt-dlp parameters
+  if (opts.cookiesBrowser && opts.cookiesBrowser !== 'none') {
+    args.push('--cookies-from-browser', opts.cookiesBrowser)
+  }
+  if (opts.sponsorBlock === 'remove') {
+    args.push('--sponsorblock-remove', 'all')
+  } else if (opts.sponsorBlock === 'mark') {
+    args.push('--sponsorblock-mark', 'all')
+  }
+  if (opts.subtitles === 'embed') {
+    args.push('--embed-subs', '--sub-langs', opts.subLangs || 'vi,en')
+  } else if (opts.subtitles === 'write') {
+    args.push('--write-subs', '--sub-langs', opts.subLangs || 'vi,en')
+  }
+  if (opts.writeThumbnail) {
+    args.push('--write-thumbnail')
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(opts.ytdlpBin, args, {signal})
