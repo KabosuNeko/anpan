@@ -74,8 +74,6 @@ export async function probeVideo(
     throw new Error('Could not parse media info from yt-dlp.')
   }
 
-  // Dump full -J JSON to a temp file so bakeVideo can invoke --load-info-json.
-  // Re-extracting from YouTube/X on download start costs 2-4 seconds of redundant network latency.
   const cachedJsonPath = path.join(os.tmpdir(), `anpan-meta-${process.pid}-${Date.now()}.json`)
   await fs.writeFile(cachedJsonPath, stdout)
   return {meta, cachedJsonPath}
@@ -236,7 +234,6 @@ export function cleanAlbumTitle(title?: string): string {
   return title.replace(/^(?:album|ep|single)\s*[-:–—]\s*/i, '').trim() || title
 }
 
-// Light probe for playlist info using --flat-playlist: returns in ~1s without pulling full stream lists
 export async function probePlaylist(
   ytdlpBin: string,
   url: string,

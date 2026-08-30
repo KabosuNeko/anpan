@@ -15,8 +15,6 @@ function ytDlpAssetName(): string {
   return process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux'
 }
 
-// Probing must be asynchronous: a synchronous spawnSync here blocks Node's event loop,
-// which freezes Ink mid-render and causes keystroke lag.
 export function binaryResponds(cmd: string, args: string[]): Promise<boolean> {
   return new Promise(resolve => {
     let child: ChildProcess
@@ -44,15 +42,13 @@ export async function hasMutagen(ytdlpPath?: string): Promise<boolean> {
 }
 
 async function safeReplaceBinary(src: string, dst: string): Promise<void> {
-  // On Windows NTFS, fs.rename fails with EPERM if dst already exists or if Windows Defender is scanning src.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       await fs.unlink(dst).catch(() => {})
       await fs.rename(src, dst)
       return
-    } catch (err) {
+    } catch {
       if (attempt === 4) {
-        // Fallback: copyFile overwrites destination on Windows, then clean up temp
         await fs.copyFile(src, dst)
         await fs.unlink(src).catch(() => {})
         return
@@ -61,11 +57,6 @@ async function safeReplaceBinary(src: string, dst: string): Promise<void> {
     }
   }
 }
-
-// Resolves a usable yt-dlp executable:
-// Prioritizes ~/.anpan/bin cache (standalone build with mutagen/brotli/crypto bundled)
-// -> system yt-dlp if it has mutagen
-// -> auto-downloads official standalone binary to ~/.anpan/bin (zero manual dependencies!).
 export async function ensureYtDlpBinary(
   onStatus: (message: string) => void,
   signal?: AbortSignal,
@@ -95,9 +86,7 @@ export async function ensureYtDlpBinary(
       }
       return localBin
     }
-  } catch {
-    // If download fails or offline, fallback to system yt-dlp
-  }
+  } catch {}
 
   if (hasSystemYtDlp) return 'yt-dlp'
   throw new Error('Could not download standalone yt-dlp. Please check your internet connection.')

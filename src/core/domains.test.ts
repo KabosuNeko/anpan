@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {identifySite, isLikelyUrl, isPlaylistUrl, parseUrlInput} from './domains.js'
+import {identifySite, isPlaylistUrl, parseUrlInput} from './domains.js'
 
 test('identifySite recognizes major video and music platforms', () => {
   assert.equal(identifySite('https://music.youtube.com/watch?v=123').key, 'youtube')

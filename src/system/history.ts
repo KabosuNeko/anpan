@@ -19,8 +19,6 @@ export function addToHistory(url: string): string[] {
   try {
     fs.mkdirSync(path.dirname(HISTORY_PATH), {recursive: true})
     fs.writeFileSync(HISTORY_PATH, `${JSON.stringify(updated, null, 2)}\n`)
-  } catch {
-    // history is a convenience — never break a download over it
-  }
+  } catch {}
   return updated
 }

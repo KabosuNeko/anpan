@@ -63,9 +63,6 @@ export async function bakeVideo(
         `%(title)s${opts.timeRange ? ` [${opts.timeRange.replace(/[:*]/g, '.')}]` : ''}.%(ext)s`,
       )
 
-  // Opus and Ogg require python-mutagen for embedding thumbnails in yt-dlp.
-  // If mutagen is not installed, yt-dlp hard-crashes. We gracefully drop --embed-thumbnail
-  // so the download succeeds with full audio quality and metadata.
   const isOpusOrOgg =
     opts.portion.label.toLowerCase().includes('opus') ||
     opts.portion.label.toLowerCase().includes('ogg')
@@ -97,8 +94,6 @@ export async function bakeVideo(
     '--progress',
     '--progress-template',
     `download:${PROGRESS_TEMPLATE}`,
-    // --print after_move:filepath writes the resolved final file destination
-    // after container merging and postprocessing completes.
     '--print',
     'after_move:filepath',
     '--no-simulate',
@@ -111,7 +106,6 @@ export async function bakeVideo(
   if (opts.ffmpegLocation) args.push('--ffmpeg-location', opts.ffmpegLocation)
   if (opts.aria2cArgs) args.push(...opts.aria2cArgs)
 
-  // Configurable yt-dlp parameters
   if (opts.cookiesBrowser && opts.cookiesBrowser !== 'none') {
     args.push('--cookies-from-browser', opts.cookiesBrowser)
   }
@@ -160,7 +154,6 @@ export async function bakeVideo(
           playlistTotal = Number.parseInt(itemMatch[2]!, 10)
         }
 
-        // Native yt-dlp progress template
         if (line.startsWith(PROGRESS_TAG)) {
           const [downloaded, total, totalEstimate, speed, eta] = line
             .slice(PROGRESS_TAG.length)

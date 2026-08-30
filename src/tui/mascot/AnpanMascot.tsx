@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 import {Box, Text} from 'ink'
 import {type Palette, useAnpanTheme} from '../theme/palette.js'
 

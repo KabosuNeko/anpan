@@ -17,9 +17,7 @@ export function readClipboard(): string {
   for (const [cmd, args] of CLIP_COMMANDS) {
     try {
       return execFileSync(cmd, args, {encoding: 'utf8', timeout: 500, stdio: ['ignore', 'pipe', 'ignore']})
-    } catch {
-      // tool missing or clipboard empty — fall through to next utility
-    }
+    } catch {}
   }
   return ''
 }

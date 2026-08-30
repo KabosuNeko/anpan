@@ -1,4 +1,4 @@
-export type ArchiveFile = {
+type ArchiveFile = {
   name: string
   url: string
   mirrors?: string[]
@@ -13,7 +13,7 @@ export type ArchivePost = {
   webpage_url: string
 }
 
-export const ARCHIVE_POST_REGEX =
+const ARCHIVE_POST_REGEX =
   /^(?:https?:\/\/)?(?:www\.)?(kemono\.(?:cr|su|party)|coomer\.(?:su|party|st)|pawchive\.(?:st|pw))\/(?:api\/v1\/)?([^/?#]+)\/user\/([^/?#]+)\/post\/([^/?#]+)/i
 
 export function isArchivePostUrl(url: string): boolean {
@@ -99,8 +99,6 @@ export async function probeArchivePost(
       if (isCoomer) {
         mirrors.push(`https://coomer.st/data${rawFile.path}?f=${encodedName}`)
       } else {
-        // Both Pawchive and Kemono share the same sha256 content hashes.
-        // We include file.pawchive.pw first because n*.kemono.cr storage nodes frequently experience outages/timeouts.
         mirrors.push(`https://file.pawchive.pw/data${rawFile.path}?f=${encodedName}`)
         mirrors.push(`https://kemono.cr/data${rawFile.path}?f=${encodedName}`)
       }

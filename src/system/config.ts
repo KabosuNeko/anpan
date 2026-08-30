@@ -20,7 +20,7 @@ export type AnpanConfig = {
 
 const CONFIG_PATH = path.join(os.homedir(), '.config', 'anpan', 'config.json')
 
-export const DEFAULT_CONFIG: AnpanConfig = {
+const DEFAULT_CONFIG: AnpanConfig = {
   aria2c: true,
   connections: 16,
   askSaveDir: true,
@@ -85,7 +85,5 @@ export function saveConfig(cfg: AnpanConfig): void {
   try {
     fs.mkdirSync(path.dirname(CONFIG_PATH), {recursive: true})
     fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`)
-  } catch {
-    // optional persistence
-  }
+  } catch {}
 }

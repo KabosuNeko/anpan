@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import os from 'node:os'
 import path from 'node:path'
 import {Box, Text, useApp, useInput, useStdout} from 'ink'
@@ -12,7 +12,7 @@ import {StageViewport} from './primitives/StageViewport.js'
 import {TrayInput} from './primitives/TrayInput.js'
 import {AnpanMascot, MASCOT_MATCH} from './mascot/AnpanMascot.js'
 import {SettingsView} from './settings/SettingsView.js'
-import {tapTargetAt, locateFrameRow, frameRowBounds, type TapTarget} from './events/hitTest.js'
+import {tapTargetAt, locateFrameRow, type TapTarget} from './events/hitTest.js'
 import {usePointer} from './events/usePointer.js'
 import {ThemeProvider, useAnpanTheme} from './theme/palette.js'
 import {
@@ -26,7 +26,7 @@ import {
   wrapText,
 } from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
-import {loadConfig, saveConfig, type AnpanConfig} from '../system/config.js'
+import {loadConfig, saveConfig} from '../system/config.js'
 import {identifySite, isLikelyTarget, isPlaylistUrl, type SiteInfo} from '../core/domains.js'
 import {inspectTarget} from '../core/router.js'
 import {
@@ -99,7 +99,7 @@ function indeterminateMeta(progress: BakeProgress): string {
 export type Outcome = {filepath?: string}
 
 type Stage =
-  | {name: 'input'; warning?: string}
+  | {name: 'input'}
   | {name: 'probing'; status: string}
   | {name: 'playlist_prompt'; playlist: PlaylistMeta}
   | {name: 'direct_prompt'; filename: string; size?: number; url: string}
@@ -596,7 +596,6 @@ function AppContent({
           return
         }
 
-        // Video / Streaming
         const {cleanUrl, timeRange: tr, timeLabel: tl} = inspection
         setUrl(cleanUrl)
         setTimeRange(tr)
@@ -700,20 +699,16 @@ function AppContent({
 
   useEffect(() => {
     const targets: TapTarget[] = []
-    const mascotRow = locateFrameRow(MASCOT_MATCH)
-    if (mascotRow !== -1) {
-      const bounds = frameRowBounds(mascotRow)
-      if (bounds) {
-        targets.push({
-          match: MASCOT_MATCH,
-          padY: 6,
-          action: () => {
-            cancel()
-            setShowSettings(false)
-            resetToInput()
-          },
-        })
-      }
+    if (locateFrameRow(MASCOT_MATCH) !== -1) {
+      targets.push({
+        match: MASCOT_MATCH,
+        padY: 6,
+        action: () => {
+          cancel()
+          setShowSettings(false)
+          resetToInput()
+        },
+      })
     }
 
     if (stage.name === 'input') {
@@ -790,12 +785,6 @@ function AppContent({
                   onTab={clipboardUrl ? () => {setUrl(clipboardUrl); void startProbe(clipboardUrl)} : undefined}
                 />
               </TrayInput>
-              {stage.warning && (
-                <>
-                  <Gap />
-                  <Text color="yellow">{stage.warning}</Text>
-                </>
-              )}
             </>
           )}
 
@@ -1025,10 +1014,10 @@ function AppContent({
                     items={[
                       {label: `[↵] ${shortenPath(config.outDir, os.homedir(), 28)} (default)`, value: config.outDir},
                       ...(path.resolve(config.outDir) !== path.resolve(path.join(os.homedir(), 'Downloads'))
-                        ? [{label: '[D] ~/Downloads', value: path.join(os.homedir(), 'Downloads')}]
+                        ? [{label: `[D] ${shortenPath(path.join(os.homedir(), 'Downloads'), os.homedir(), 28)}`, value: path.join(os.homedir(), 'Downloads')}]
                         : []),
                       ...(path.resolve(config.outDir) !== path.resolve(path.join(os.homedir(), 'Videos'))
-                        ? [{label: '[V] ~/Videos', value: path.join(os.homedir(), 'Videos')}]
+                        ? [{label: `[V] ${shortenPath(path.join(os.homedir(), 'Videos'), os.homedir(), 28)}`, value: path.join(os.homedir(), 'Videos')}]
                         : []),
                       ...(path.resolve(config.outDir) !== path.resolve(process.cwd())
                         ? [{label: `[C] Current folder (./)`, value: process.cwd()}]
