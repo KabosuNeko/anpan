@@ -43,6 +43,25 @@ export async function hasMutagen(ytdlpPath?: string): Promise<boolean> {
   return cachedMutagen
 }
 
+async function safeReplaceBinary(src: string, dst: string): Promise<void> {
+  // On Windows NTFS, fs.rename fails with EPERM if dst already exists or if Windows Defender is scanning src.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await fs.unlink(dst).catch(() => {})
+      await fs.rename(src, dst)
+      return
+    } catch (err) {
+      if (attempt === 4) {
+        // Fallback: copyFile overwrites destination on Windows, then clean up temp
+        await fs.copyFile(src, dst)
+        await fs.unlink(src).catch(() => {})
+        return
+      }
+      await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)))
+    }
+  }
+}
+
 // Resolves a usable yt-dlp executable:
 // Prioritizes ~/.anpan/bin cache (standalone build with mutagen/brotli/crypto bundled)
 // -> system yt-dlp if it has mutagen
@@ -67,8 +86,13 @@ export async function ensureYtDlpBinary(
     if (response.ok && response.body) {
       const tmp = `${localBin}.download`
       await pipeline(Readable.fromWeb(response.body as never), createWriteStream(tmp), {signal})
-      await fs.chmod(tmp, 0o755)
-      await fs.rename(tmp, localBin)
+      if (process.platform !== 'win32') {
+        await fs.chmod(tmp, 0o755).catch(() => {})
+      }
+      await safeReplaceBinary(tmp, localBin)
+      if (process.platform !== 'win32') {
+        await fs.chmod(localBin, 0o755).catch(() => {})
+      }
       return localBin
     }
   } catch {
