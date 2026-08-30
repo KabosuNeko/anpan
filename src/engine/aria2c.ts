@@ -289,7 +289,7 @@ function runAria2Process(
 
 function formatAriaError(code: number, rawErr: string): string {
   if (code === 2) {
-    return 'Connection timed out. Storage server (n1-n4) is unresponsive or blocked by network/ISP. Try using a VPN or 1.1.1.1 WARP.'
+    return 'Connection timed out. Storage server (n1-n4) is currently down or unresponsive.'
   }
   if (code === 3) return 'File not found on remote server (HTTP 404).'
   if (code === 9) return 'Not enough disk space available.'
