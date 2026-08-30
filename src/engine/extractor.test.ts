@@ -40,16 +40,36 @@ test('extractPortions lists all available resolutions without 8-tier truncation'
     assert.deepEqual(vp.ytdlpArgs.slice(-2), ['--merge-output-format', 'mkv'])
   }
 
-  // Audio portions
+  // Audio portions: native m4a + configured flac + mp3 fallback = 3
   const audioPortions = portions.filter(p => p.kind === 'audio')
-  assert.equal(audioPortions.length, 2)
-  assert.match(audioPortions[0]!.label, /^audio only · flac/)
-  assert.match(audioPortions[1]!.label, /^audio only · mp3/)
+  assert.equal(audioPortions.length, 3)
+  assert.match(audioPortions[0]!.label, /^audio only · m4a \(aac\)/)
+  assert.match(audioPortions[1]!.label, /^audio only · flac/)
+  assert.match(audioPortions[2]!.label, /^audio only · mp3/)
+})
+
+test('extractPortions includes native opus stream when present (e.g. YouTube / YTM)', () => {
+  const meta: VideoMeta = {
+    title: 'YTM Song',
+    duration: 210,
+    formats: [
+      {format_id: '251', ext: 'webm', acodec: 'opus', abr: 160, filesize: 4_200_000},
+      {format_id: '140', ext: 'm4a', acodec: 'mp4a.40.2', abr: 128, filesize: 3_300_000},
+    ],
+  }
+
+  const portions = extractPortions(meta)
+  const audioPortions = portions.filter(p => p.kind === 'audio')
+  assert.ok(audioPortions.some(p => p.label.startsWith('audio only · opus (original)')))
+  assert.ok(audioPortions.some(p => p.label.startsWith('audio only · m4a (aac)')))
+  assert.ok(audioPortions.some(p => p.label.startsWith('audio only · mp3')))
 })
 
 test('extractPlaylistPortions honors videoContainer and audioFormat', () => {
   const plPortions = extractPlaylistPortions({videoContainer: 'webm', audioFormat: 'm4a'})
-  assert.equal(plPortions.length, 3) // m4a, webm best, fallback mp3
+  assert.equal(plPortions.length, 4) // m4a, opus fallback, mp3 fallback, webm best
   assert.match(plPortions[0]!.label, /all tracks · m4a/)
-  assert.match(plPortions[1]!.label, /all videos · webm/)
+  assert.match(plPortions[1]!.label, /all tracks · opus \(original audio\)/)
+  assert.match(plPortions[2]!.label, /all tracks · mp3/)
+  assert.match(plPortions[3]!.label, /all videos · webm/)
 })
