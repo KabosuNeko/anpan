@@ -231,6 +231,11 @@ export type PlaylistMeta = {
   webpage_url: string
 }
 
+export function cleanAlbumTitle(title?: string): string {
+  if (!title) return 'Playlist'
+  return title.replace(/^(?:album|ep|single)\s*[-:–—]\s*/i, '').trim() || title
+}
+
 // Light probe for playlist info using --flat-playlist: returns in ~1s without pulling full stream lists
 export async function probePlaylist(
   ytdlpBin: string,
@@ -267,7 +272,7 @@ export async function probePlaylist(
     if (data._type === 'playlist' || Array.isArray(data.entries)) {
       const trackCount = data.playlist_count ?? data.entries?.length ?? 0
       return {
-        title: data.title || 'Playlist',
+        title: cleanAlbumTitle(data.title),
         uploader: data.uploader,
         trackCount,
         webpage_url: data.webpage_url || url,

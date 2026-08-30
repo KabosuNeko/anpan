@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {extractPortions, extractPlaylistPortions, type VideoMeta} from './extractor.js'
+import {extractPortions, extractPlaylistPortions, cleanAlbumTitle, type VideoMeta} from './extractor.js'
 
 test('extractPortions lists all available resolutions without 8-tier truncation', () => {
   const meta: VideoMeta = {
@@ -72,4 +72,14 @@ test('extractPlaylistPortions honors videoContainer and audioFormat', () => {
   assert.match(plPortions[1]!.label, /all tracks · opus \(original audio\)/)
   assert.match(plPortions[2]!.label, /all tracks · mp3/)
   assert.match(plPortions[3]!.label, /all videos · webm/)
+})
+
+test('cleanAlbumTitle strips Album, EP, Single prefixes cleanly', () => {
+  assert.equal(cleanAlbumTitle('Album - Midnights'), 'Midnights')
+  assert.equal(cleanAlbumTitle('album - Lover'), 'Lover')
+  assert.equal(cleanAlbumTitle('Album: 1989'), '1989')
+  assert.equal(cleanAlbumTitle('EP - The Secret'), 'The Secret')
+  assert.equal(cleanAlbumTitle('Single - Anti-Hero'), 'Anti-Hero')
+  assert.equal(cleanAlbumTitle('Normal Playlist'), 'Normal Playlist')
+  assert.equal(cleanAlbumTitle(undefined), 'Playlist')
 })
