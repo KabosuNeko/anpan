@@ -15,7 +15,16 @@ import {SettingsView} from './settings/SettingsView.js'
 import {tapTargetAt, locateFrameRow, frameRowBounds, type TapTarget} from './events/hitTest.js'
 import {usePointer} from './events/usePointer.js'
 import {ThemeProvider, useAnpanTheme} from './theme/palette.js'
-import {formatBytes, formatDuration, formatEta, formatSpeed, shortenPath, truncate, wrapText} from '../core/units.js'
+import {
+  formatBytes,
+  formatDuration,
+  formatEta,
+  formatSpeed,
+  resolveUserPath,
+  shortenPath,
+  truncate,
+  wrapText,
+} from '../core/units.js'
 import {addToHistory, loadHistory} from '../system/history.js'
 import {loadConfig, saveConfig, type AnpanConfig} from '../system/config.js'
 import {identifySite, isLikelyTarget, isPlaylistUrl, type SiteInfo} from '../core/domains.js'
@@ -251,7 +260,7 @@ function AppContent({
   const startBake = useCallback(
     async (portion: Portion, targetOutputDir?: string) => {
       cancel()
-      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
+      const effectiveOutDir = resolveUserPath(targetOutputDir || initialOutDir || config.outDir)
       setStage({name: 'baking', portion, processing: false})
 
       const ac = new AbortController()
@@ -303,7 +312,7 @@ function AppContent({
   const startDirectBake = useCallback(
     async (targetUrl: string, filename: string, targetOutputDir?: string) => {
       cancel()
-      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
+      const effectiveOutDir = resolveUserPath(targetOutputDir || initialOutDir || config.outDir)
       setStage({name: 'baking', targetTitle: filename, processing: false})
 
       const ac = new AbortController()
@@ -343,7 +352,7 @@ function AppContent({
   const startTorrentBake = useCallback(
     async (target: string, name: string, targetOutputDir?: string) => {
       cancel()
-      const effectiveOutDir = targetOutputDir || initialOutDir || config.outDir
+      const effectiveOutDir = resolveUserPath(targetOutputDir || initialOutDir || config.outDir)
       setStage({name: 'baking', targetTitle: name, processing: false})
 
       const ac = new AbortController()
@@ -393,11 +402,7 @@ function AppContent({
 
   const confirmDestAndDownload = useCallback(
     (dir: string) => {
-      let cleaned = dir.trim()
-      if (cleaned.startsWith('~')) {
-        cleaned = path.join(os.homedir(), cleaned.slice(1))
-      }
-      const resolved = path.resolve(cleaned)
+      const resolved = resolveUserPath(dir)
 
       if (stage.name === 'dest_prompt') {
         if (stage.portion) {

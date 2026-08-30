@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {formatBytes, formatDuration, formatSpeed, formatEta, truncate, shortenPath, wrapText} from './units.js'
+import {formatBytes, formatDuration, formatSpeed, formatEta, truncate, shortenPath, resolveUserPath, wrapText} from './units.js'
 
 test('formatBytes converts sizes to human units', () => {
   assert.equal(formatBytes(0), '')
@@ -38,6 +38,13 @@ test('truncate clips long text with ellipsis and handles CJK width', () => {
 test('shortenPath replaces homedir with ~ and truncates', () => {
   assert.equal(shortenPath('/home/user/Downloads/file.mp4', '/home/user'), '~/Downloads/file.mp4')
   assert.equal(shortenPath('/other/path/file.mp4', '/home/user'), '/other/path/file.mp4')
+})
+
+test('resolveUserPath expands tilde across platforms', () => {
+  const fakeHome = '/mock/home/user'
+  assert.equal(resolveUserPath('~/Music', fakeHome), '/mock/home/user/Music')
+  assert.equal(resolveUserPath('~', fakeHome), '/mock/home/user')
+  assert.equal(resolveUserPath('/absolute/path', fakeHome), '/absolute/path')
 })
 
 test('wrapText breaks long text into lines', () => {

@@ -1,3 +1,6 @@
+import os from 'node:os'
+import path from 'node:path'
+
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return ''
   const tiers = ['B', 'KB', 'MB', 'GB'] as const
@@ -75,10 +78,25 @@ export function truncate(text: string, max: number): string {
 }
 
 export function shortenPath(filepath: string, homedir: string, max = 60): string {
-  const pretty = filepath.startsWith(homedir) ? `~${filepath.slice(homedir.length)}` : filepath
+  const normFile = path.normalize(filepath)
+  const normHome = path.normalize(homedir)
+  const isWindows = process.platform === 'win32'
+  const isUnderHome = isWindows
+    ? normFile.toLowerCase().startsWith(normHome.toLowerCase())
+    : normFile.startsWith(normHome)
+
+  const pretty = isUnderHome ? `~${normFile.slice(normHome.length)}` : normFile
   if (pretty.length <= max) return pretty
   const ext = /\.\w{1,5}$/.exec(pretty)?.[0] ?? ''
   return `${pretty.slice(0, max - ext.length - 1)}…${ext}`
+}
+
+export function resolveUserPath(raw: string, homedir = os.homedir()): string {
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('~')) {
+    cleaned = path.join(homedir, cleaned.slice(1).replace(/^[/\\]+/, ''))
+  }
+  return path.resolve(cleaned)
 }
 
 // Word-wrap text into left-flush lines of at most `width` columns.

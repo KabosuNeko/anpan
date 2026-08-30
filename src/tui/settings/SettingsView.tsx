@@ -5,7 +5,7 @@ import {Box, Text, useInput} from 'ink'
 import {BunCard} from '../primitives/BunCard.js'
 import {KeyField} from '../primitives/KeyField.js'
 import {useAnpanTheme} from '../theme/palette.js'
-import {shortenPath} from '../../core/units.js'
+import {resolveUserPath, shortenPath} from '../../core/units.js'
 import type {AnpanConfig} from '../../system/config.js'
 
 type SettingsViewProps = {
@@ -127,12 +127,7 @@ export function SettingsView({width, config, onChange, onClose}: SettingsViewPro
   }
 
   const saveCustomDir = (raw: string) => {
-    let cleaned = raw.trim()
-    if (!cleaned) return
-    if (cleaned.startsWith('~')) {
-      cleaned = path.join(os.homedir(), cleaned.slice(1))
-    }
-    const resolved = path.resolve(cleaned)
+    const resolved = resolveUserPath(raw)
     onChange({...config, outDir: resolved})
     setEditingDir(false)
   }

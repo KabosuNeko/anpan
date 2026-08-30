@@ -1,4 +1,5 @@
 import {spawn, type ChildProcess} from 'node:child_process'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import type {BakeProgress} from './downloader.js'
 
@@ -160,8 +161,10 @@ function runAria2Process(
   handlers: {onProgress: (progress: BakeProgress) => void},
   signal?: AbortSignal,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(aria2cBin, args, {signal})
+  return fs.mkdir(outputDir, {recursive: true}).then(
+    () =>
+      new Promise((resolve, reject) => {
+        const child = spawn(aria2cBin, args, {signal})
     let stderr = ''
     let resolvedFile = fallbackFilename ? path.join(outputDir, fallbackFilename) : ''
     let buffer = ''
@@ -217,5 +220,5 @@ function runAria2Process(
         reject(new Error(stderr.trim() || `aria2c exited with code ${code}.`))
       }
     })
-  })
+  }))
 }
