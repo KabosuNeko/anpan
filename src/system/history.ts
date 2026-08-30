@@ -5,7 +5,6 @@ import path from 'node:path'
 const HISTORY_PATH = path.join(os.homedir(), '.config', 'anpan', 'history.json')
 const MAX_ENTRIES = 50
 
-/** Load saved URL history. Returns empty array on any error. */
 export function loadHistory(): string[] {
   try {
     const data: unknown = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'))
@@ -15,7 +14,6 @@ export function loadHistory(): string[] {
   }
 }
 
-/** Prepend a URL (deduped, capped) and persist. Returns the updated list. */
 export function addToHistory(url: string): string[] {
   const updated = [url, ...loadHistory().filter(e => e !== url)].slice(0, MAX_ENTRIES)
   try {

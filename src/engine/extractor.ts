@@ -98,7 +98,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
 
   const hasVideo = streams.some(s => s.vcodec && s.vcodec !== 'none')
   const videoStreams = streams.filter(s => s.vcodec && s.vcodec !== 'none' && s.height)
-  // Retrieve ALL available heights in descending order (no truncation to 8 tiers)
   const heights = [...new Set(videoStreams.map(s => s.height as number))].sort((a, b) => b - a)
 
   for (const height of heights) {
@@ -106,7 +105,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     const best = [...candidates].sort((a, b) => scoreStream(b, container) - scoreStream(a, container))[0]!
     const isMuxed = best.acodec !== undefined && best.acodec !== 'none'
 
-    // Calculate video bytes from filesize, filesize_approx, or tbr/vbr
     let videoBytes = best.filesize ?? best.filesize_approx
     if (!videoBytes && (best.tbr || best.vbr) && meta.duration) {
       const rate = best.tbr ?? (best.vbr ?? 0) + (best.abr ?? 0)
@@ -115,8 +113,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
 
     const estimatedSize = videoBytes ? videoBytes + (isMuxed ? 0 : audioSize ?? 0) : 0
     const sizeTag = estimatedSize > 0 ? ` · ~${formatBytes(estimatedSize)}` : ''
-
-    // Framerate & HDR tags
     const fpsTag = best.fps && best.fps >= 50 ? `${Math.round(best.fps)}` : ''
     const hdrTag = best.dynamic_range && best.dynamic_range.toLowerCase().includes('hdr') ? ' HDR' : ''
 
@@ -132,7 +128,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     })
   }
 
-  // Only push fallback video stream if the media actually has a video stream!
   if (hasVideo && portions.length === 0) {
     portions.push({
       kind: 'video',
@@ -141,7 +136,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     })
   }
 
-  // Audio streams: Universal detection for all platforms (YTM, YouTube, SoundCloud, Bandcamp, TikTok, etc.)
   const addedAudioFormats = new Set<string>()
   const nativeAudioMap = new Map<string, RawStream>()
 
@@ -164,7 +158,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     }
   }
 
-  // Preferred order of native formats to present
   const priorityKeys = ['opus', 'flac', 'm4a', 'mp3', 'ogg']
   for (const key of [...priorityKeys, ...Array.from(nativeAudioMap.keys()).filter(k => !priorityKeys.includes(k))]) {
     const stream = nativeAudioMap.get(key)
@@ -195,12 +188,10 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     addedAudioFormats.add(key)
   }
 
-  // User-configured audio format (if not already added above)
   if (!addedAudioFormats.has(audioFmt)) {
     const audioSizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
     const audioBitrateTag = bestAudio?.abr ? ` · ${Math.round(bestAudio.abr)}kbps` : ''
-    const audioQuality = audioFmt === 'flac' || audioFmt === 'wav' ? '0' : '0'
-    const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', audioFmt, '--audio-quality', audioQuality]
+    const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', audioFmt, '--audio-quality', '0']
     if (opts?.embedMetadata !== false) audioArgs.push('--embed-thumbnail', '--add-metadata')
     portions.push({
       kind: 'audio',
@@ -210,7 +201,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     addedAudioFormats.add(audioFmt)
   }
 
-  // Universal MP3 fallback if not yet added
   if (!addedAudioFormats.has('mp3')) {
     const mp3SizeTag = audioSize ? ` · ~${formatBytes(audioSize)}` : ''
     const mp3Args = ['-f', 'ba/b', '-x', '--audio-format', 'mp3', '--audio-quality', '0']
@@ -223,7 +213,6 @@ export function extractPortions(meta: VideoMeta, opts?: ExtractPortionsOptions):
     addedAudioFormats.add('mp3')
   }
 
-  // Final fallback if link provided neither video nor audio streams
   if (portions.length === 0) {
     portions.push({
       kind: 'video',
@@ -299,8 +288,7 @@ export function extractPlaylistPortions(opts?: ExtractPortionsOptions): Portion[
   const container = opts?.videoContainer ?? 'mp4'
   const audioFmt = opts?.audioFormat ?? 'mp3'
 
-  const audioQuality = audioFmt === 'flac' || audioFmt === 'wav' ? '0' : '0'
-  const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', audioFmt, '--audio-quality', audioQuality]
+  const audioArgs = ['-f', 'ba/b', '-x', '--audio-format', audioFmt, '--audio-quality', '0']
   if (opts?.embedMetadata !== false) {
     audioArgs.push('--embed-thumbnail', '--add-metadata')
   }
@@ -348,7 +336,7 @@ function scoreStream(s: RawStream, preferredContainer = 'mp4'): number {
   return score
 }
 
-function cleanErrorOutput(stderr: string): string {
+export function cleanErrorOutput(stderr: string): string {
   const lines = stderr
     .split('\n')
     .map(l => l.trim())
