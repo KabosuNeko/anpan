@@ -85,7 +85,9 @@ export function shortenPath(filepath: string, homedir: string, max = 60): string
     ? normFile.toLowerCase().startsWith(normHome.toLowerCase())
     : normFile.startsWith(normHome)
 
-  const pretty = isUnderHome ? `~${normFile.slice(normHome.length)}` : normFile
+  const pretty = isUnderHome
+    ? `~${normFile.slice(normHome.length).replace(/\\/g, '/')}`
+    : normFile
   if (pretty.length <= max) return pretty
   const ext = /\.\w{1,5}$/.exec(pretty)?.[0] ?? ''
   return `${pretty.slice(0, max - ext.length - 1)}…${ext}`
