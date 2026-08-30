@@ -91,9 +91,9 @@ function progressMeta(progress: BakeProgress): string {
 }
 
 function indeterminateMeta(progress: BakeProgress): string {
-  const bytes = formatBytes(progress.downloadedBytes)
+  const bytes = progress.downloadedBytes > 0 ? formatBytes(progress.downloadedBytes) : 'connecting…'
   const speed = progress.speed ? formatSpeed(progress.speed) : ''
-  return `${partTag(progress)}${bytes.padStart(8)}  ${speed.padEnd(10)}`
+  return `${partTag(progress)}${bytes.padStart(8)}${speed ? `  ${speed.padEnd(10)}` : ''}`
 }
 
 export type Outcome = {filepath?: string}
@@ -110,7 +110,7 @@ type Stage =
       portion?: Portion
       directTarget?: {url: string; filename: string}
       torrentTarget?: {target: string; title: string}
-      archiveTarget?: {title: string; items: Array<{name: string; url: string}>}
+      archiveTarget?: {title: string; items: Array<{name: string; url: string; mirrors?: string[]}>}
     }
   | {
       name: 'baking'
@@ -389,7 +389,11 @@ function AppContent({
   )
 
   const startArchiveBake = useCallback(
-    async (title: string, items: Array<{name: string; url: string}>, targetOutputDir?: string) => {
+    async (
+      title: string,
+      items: Array<{name: string; url: string; mirrors?: string[]}>,
+      targetOutputDir?: string,
+    ) => {
       cancel()
       const ac = new AbortController()
       abortRef.current = ac
@@ -411,7 +415,7 @@ function AppContent({
         const filepath = await bakeBatchDownload(
           {
             aria2cBin: bin,
-            items: items.map(it => ({url: it.url, filename: it.name})),
+            items: items.map(it => ({url: it.url, mirrors: it.mirrors, filename: it.name})),
             outputDir: effectiveOutDir,
             connections: config.connections,
           },
@@ -435,7 +439,7 @@ function AppContent({
   )
 
   const triggerArchiveDownload = useCallback(
-    (title: string, items: Array<{name: string; url: string}>) => {
+    (title: string, items: Array<{name: string; url: string; mirrors?: string[]}>) => {
       if (config.askSaveDir && !initialOutDir) {
         setIsCustomDirInput(false)
         setCustomDirInput(shortenPath(config.outDir, os.homedir()))
@@ -569,11 +573,8 @@ function AppContent({
           setHistory(addToHistory(post.webpage_url))
 
           if (post.files.length === 1) {
-            setStage({
-              name: 'direct_prompt',
-              filename: post.files[0]!.name,
-              url: post.files[0]!.url,
-            })
+            setArchivePost(post)
+            triggerArchiveDownload(post.title, post.files)
             return
           }
 
@@ -969,7 +970,7 @@ function AppContent({
                         triggerArchiveDownload(archivePost.title, archivePost.files)
                       } else {
                         const file = archivePost.files[idx - 1]
-                        if (file) triggerDirectDownload(file.url, file.name)
+                        if (file) triggerArchiveDownload(archivePost.title, [file])
                       }
                     } else {
                       triggerPortionDownload(item.value)
@@ -1089,23 +1090,31 @@ function AppContent({
                       </Text>
                     </>
                   ) : (
-                    <Text dimColor={palette.dimAccent}>
-                      {indeterminateMeta(stage.progress)}
-                      {stage.progress.seeders !== undefined
-                        ? `  · P2P (${stage.progress.connections} peers, ${stage.progress.seeders} seeds)`
-                        : config.aria2c && aria2cPathRef.current
-                          ? `  · aria2c (${config.connections})`
-                          : ''}
-                    </Text>
+                    <Box alignItems="center">
+                      {stage.progress.downloadedBytes === 0 && (
+                        <Box marginRight={1}>
+                          <Spinner type="dots" />
+                        </Box>
+                      )}
+                      <Text dimColor={palette.dimAccent}>
+                        {indeterminateMeta(stage.progress)}
+                        {stage.progress.seeders !== undefined
+                          ? `  · P2P (${stage.progress.connections} peers, ${stage.progress.seeders} seeds)`
+                          : config.aria2c && aria2cPathRef.current
+                            ? `  · aria2c (${config.connections})`
+                            : ''}
+                      </Text>
+                    </Box>
                   )}
                 </>
               ) : (
-                <Box>
-                  <Text>
+                <Box alignItems="center">
+                  <Box marginRight={1}>
                     <Spinner type="dots" />
-                  </Text>
+                  </Box>
                   <Text dimColor={palette.dimAccent}>
-                    {' downloading…'}
+                    connecting to server…
+                    {config.aria2c && aria2cPathRef.current ? `  · aria2c (${config.connections})` : ''}
                   </Text>
                 </Box>
               )}
