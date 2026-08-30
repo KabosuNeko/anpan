@@ -32,13 +32,19 @@ test('formatSpeed and formatEta delegate correctly', () => {
 test('truncate clips long text with ellipsis and handles CJK width', () => {
   assert.equal(truncate('hello', 10), 'hello')
   assert.equal(truncate('hello world', 8), 'hello w…')
-  // CJK characters take 2 terminal columns each
   assert.equal(truncate('澤野弘之', 6), '澤野…')
 })
 
 test('shortenPath replaces homedir with ~ and truncates', () => {
-  assert.equal(shortenPath('/home/user/Downloads/file.mp4', '/home/user'), '~/Downloads/file.mp4')
+  const expectedHome = process.platform === 'win32' ? `~\\Downloads\\file.mp4` : '~/Downloads/file.mp4'
+  assert.equal(shortenPath('/home/user/Downloads/file.mp4', '/home/user'), expectedHome)
   assert.equal(shortenPath('/other/path/file.mp4', '/home/user'), path.normalize('/other/path/file.mp4'))
+  if (process.platform === 'win32') {
+    assert.equal(
+      shortenPath('C:\\Users\\test\\Downloads\\file.mp4', 'C:\\Users\\test'),
+      `~\\Downloads\\file.mp4`,
+    )
+  }
 })
 
 test('resolveUserPath expands tilde across platforms', () => {
