@@ -1,5 +1,6 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type {BakeProgress} from './downloader.js'
 
@@ -151,6 +152,51 @@ export function bakeTorrentDownload(
   ]
 
   return runAria2Process(opts.aria2cBin, args, opts.outputDir, undefined, handlers, signal)
+}
+
+export async function bakeBatchDownload(
+  opts: {
+    aria2cBin: string
+    items: Array<{url: string; filename: string}>
+    outputDir: string
+    connections?: number
+  },
+  handlers: {
+    onProgress: (progress: BakeProgress) => void
+  },
+  signal?: AbortSignal,
+): Promise<string> {
+  const c = Math.max(1, Math.min(32, opts.connections ?? 16))
+  const tmpBatchFile = path.join(os.tmpdir(), `anpan-batch-${process.pid}-${Date.now()}.txt`)
+
+  const content = opts.items
+    .map(item => `${item.url}\n  out=${item.filename}`)
+    .join('\n')
+  await fs.writeFile(tmpBatchFile, `${content}\n`, 'utf8')
+
+  const args = [
+    '-d',
+    opts.outputDir,
+    '-i',
+    tmpBatchFile,
+    '-x',
+    String(c),
+    '-s',
+    String(c),
+    '-k',
+    '1M',
+    '-j',
+    String(c),
+    '--summary-interval=1',
+    '--auto-file-renaming=false',
+    '--allow-overwrite=true',
+  ]
+
+  try {
+    return await runAria2Process(opts.aria2cBin, args, opts.outputDir, undefined, handlers, signal)
+  } finally {
+    await fs.unlink(tmpBatchFile).catch(() => {})
+  }
 }
 
 function runAria2Process(

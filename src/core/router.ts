@@ -1,5 +1,6 @@
 import path from 'node:path'
 import {identifySite, parseUrlInput} from './domains.js'
+import {isArchivePostUrl, probeArchivePost, type ArchivePost} from '../engine/archive.js'
 
 export type TargetInspection =
   | {
@@ -12,6 +13,10 @@ export type TargetInspection =
       url: string
       filename: string
       size?: number
+    }
+  | {
+      type: 'archive'
+      post: ArchivePost
     }
   | {
       type: 'video'
@@ -90,6 +95,16 @@ export async function inspectTarget(
   }
 
   const {cleanUrl, timeRange, timeLabel} = parseUrlInput(trimmed)
+
+  if (isArchivePostUrl(cleanUrl)) {
+    const archive = await probeArchivePost(cleanUrl, signal)
+    if (archive && archive.files.length > 0) {
+      return {
+        type: 'archive',
+        post: archive,
+      }
+    }
+  }
 
   const site = identifySite(cleanUrl)
   if (timeRange || site.key !== 'generic') {
