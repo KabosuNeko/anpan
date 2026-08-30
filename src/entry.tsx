@@ -5,6 +5,7 @@ import {captureFrames} from './tui/events/hitTest.js'
 import {parseArgs} from './cli/options.js'
 import {readClipboard} from './system/clipboard.js'
 import {isLikelyTarget} from './core/domains.js'
+import {checkUpdate} from './system/update.js'
 
 const VERSION: string = createRequire(import.meta.url)('../package.json').version
 
@@ -73,12 +74,17 @@ if (isTTY) {
   }
 }
 
+const updatePromise = checkUpdate(VERSION)
+  .then(res => (res?.updateAvailable ? res.latestVersion : null))
+  .catch(() => null)
+
 let outcome: Outcome = {}
 const {waitUntilExit} = render(
   <AnpanApp
     initialUrl={initialUrl}
     initialOutDir={initialOutDir}
     clipboardUrl={clipboardUrl}
+    version={VERSION}
     onOutcome={result => (outcome = result)}
   />,
   {stdout: captureFrames(process.stdout)},
@@ -89,4 +95,12 @@ await waitUntilExit()
 if (isTTY) leaveAltScreen()
 if (outcome.filepath) {
   console.log(`done → ${outcome.filepath}`)
+}
+
+const latest = await Promise.race([
+  updatePromise,
+  new Promise<null>(r => setTimeout(() => r(null), 50)),
+])
+if (latest) {
+  console.log(`\x1b[33m✦ update available:\x1b[0m ${VERSION} → \x1b[32m${latest}\x1b[0m (run: npm i -g anpan-cli)`)
 }
