@@ -69,7 +69,7 @@ export async function bakeVideo(
     opts.portion.label.toLowerCase().includes('opus') ||
     opts.portion.label.toLowerCase().includes('ogg')
   let portionArgs = opts.portion.ytdlpArgs
-  if (isOpusOrOgg && !(await hasMutagen())) {
+  if (isOpusOrOgg && !(await hasMutagen(opts.ytdlpBin))) {
     portionArgs = portionArgs.filter(arg => arg !== '--embed-thumbnail')
   }
 
