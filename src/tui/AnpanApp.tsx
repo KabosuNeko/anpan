@@ -419,7 +419,7 @@ function AppContent({
 
   const probeSingle = useCallback(
     async (targetUrl: string, bin: string, signal: AbortSignal) => {
-      setStage({name: 'probing', status: 'fetching video info…'})
+      setStage({name: 'probing', status: 'fetching media info…'})
       const result = await probeVideo(bin, targetUrl, signal)
       setMeta(result.meta)
       setCachedJsonPath(result.cachedJsonPath)

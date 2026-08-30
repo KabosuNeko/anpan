@@ -71,7 +71,7 @@ export async function probeVideo(
   try {
     meta = JSON.parse(stdout) as VideoMeta
   } catch {
-    throw new Error('Could not parse video info from yt-dlp.')
+    throw new Error('Could not parse media info from yt-dlp.')
   }
 
   // Dump full -J JSON to a temp file so bakeVideo can invoke --load-info-json.
