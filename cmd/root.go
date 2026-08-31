@@ -52,7 +52,7 @@ Examples:
 
 			check := system.CheckUpdate(context.Background(), Version, nil)
 			if check != nil && check.UpdateAvailable {
-				fmt.Printf("\033[33m✦ update available:\033[0m %s → \033[32mv%s\033[0m (run: curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | bash)\n", Version, check.LatestVersion)
+				fmt.Printf("\033[33m✦ update available:\033[0m %s → \033[32mv%s\033[0m (run: \033[1manpan update\033[0m)\n", Version, check.LatestVersion)
 			}
 
 			return nil

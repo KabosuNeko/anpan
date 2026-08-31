@@ -999,7 +999,7 @@ func (m Model) View() tea.View {
 				styleDim.Render(m.version) +
 				styleTitle.Render(" → ") +
 				styleSuccess.Render("v"+m.latestVersion) +
-				styleDim.Render(" (run: curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | bash)"),
+				styleDim.Render(" (run: anpan update)"),
 		)
 		headerBlock = fmt.Sprintf("%s\n\n%s\n%s\n\n%s", mascot, tagline, hintsLine, updBanner)
 	} else {

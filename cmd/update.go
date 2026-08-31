@@ -41,6 +41,20 @@ var updateCmd = &cobra.Command{
 			return fmt.Errorf("cannot resolve symlink: %w", err)
 		}
 
+		// Detect if installed via package manager (e.g. Arch Linux AUR / pacman)
+		if runtime.GOOS == "linux" && (strings.HasPrefix(execPath, "/usr/bin/") || strings.HasPrefix(execPath, "/usr/local/bin/")) {
+			if _, pErr := exec.LookPath("pacman"); pErr == nil {
+				// Check if owned by pacman package
+				checkCmd := exec.Command("pacman", "-Qo", execPath)
+				if err := checkCmd.Run(); err == nil {
+					fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
+					fmt.Println("→ Please update using your AUR helper:")
+					fmt.Println("   yay -Syu anpan-bin   (or paru -Syu anpan-bin)")
+					return nil
+				}
+			}
+		}
+
 		// Platform asset
 		osName := runtime.GOOS
 		archName := runtime.GOARCH
