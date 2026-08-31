@@ -1,3 +1,9 @@
 node_modules/
 dist/
 *.tgz
+anpan
+anpan.exe
+*.test
+*.out
+release-all/
+release-assets/
