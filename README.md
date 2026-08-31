@@ -11,7 +11,7 @@
 </p>
 <p><br/></p>
 
-`anpan` is a minimal, all-in-one terminal downloader written in **Go**. It combines video and audio stream extraction, multi-threaded direct file acceleration, BitTorrent P2P transfers, and creator archive scraping into a single unified CLI interface with a responsive Bubble Tea TUI. Fast, transparent, zero-config, and just works.
+`anpan` is a minimal, all-in-one terminal downloader written in **Go**. It combines video and audio stream extraction, multi-threaded direct file acceleration, and BitTorrent P2P transfers into a single unified CLI interface with a responsive Bubble Tea TUI. Fast, transparent, zero-config, and just works.
 
 ## Preview
 
@@ -26,7 +26,7 @@
 | Component | Software / Protocol | Role |
 | :--- | :--- | :--- |
 | **Media Engine** | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Video & audio stream extraction (+1,800 sites supported) |
-| **P2P & Accelerator** | [aria2c](https://github.com/aria2/aria2) | BitTorrent/DHT engine, archive batch downloader & 16-connection acceleration |
+| **P2P & Accelerator** | [aria2c](https://github.com/aria2/aria2) | BitTorrent/DHT engine & 16-connection acceleration |
 | **Transcoder** | [FFmpeg](https://ffmpeg.org/) | Adaptive stream multiplexing, audio extraction, thumbnail & ID3 embedding |
 | **CLI & TUI Framework** | [Cobra](https://github.com/spf13/cobra) / [Bubble Tea](https://charm.land/bubbletea/v2) / [Lip Gloss](https://charm.land/lipgloss/v2) | Modern Elm-architecture terminal UI with Lip Gloss styling |
 | **Language & Runtime** | [Go](https://go.dev/) 1.24+ | Single self-contained static binary, zero runtime dependencies |
@@ -34,15 +34,12 @@
 ## Supported Sources & Protocols
 
 - **Streaming Video & Music**: YouTube, YouTube Music, SoundCloud, Bandcamp, Twitch, TikTok, X (Twitter), Instagram, Threads, Reddit, Facebook, Vimeo, and +1,800 other sites.
-- **Creator Archive Platforms**: Kemono (`kemono.cr`, `kemono.su`), Coomer (`coomer.st`), Pawchive (`pawchive.st`, `pawchive.pw`) — scrapes and batch-downloads posts across Patreon, Fanbox, Fantia, SubscribeStar, Gumroad, Boosty, OnlyFans, and Fansly.
 - **BitTorrent P2P**: Magnet links and `.torrent` files with decentralized DHT discovery, real-time peer/seed tracking, and automatic exit upon 100% completion.
 - **Direct HTTP/HTTPS Files**: High-speed parallel chunk downloading for `.iso`, `.zip`, `.tar.gz`, `.mp4`, or any direct file URL.
 
 ## Key Features
 
-- **Smart Target Routing** — zero-config router automatically classifies inputs into Video/Music (`yt-dlp`), Archive Posts (`aria2c batch`), P2P (`aria2c torrent`), or Direct Files without requiring manual CLI flags.
-- **Archive Post Batch Downloader** — paste a post URL from Kemono, Coomer, or Pawchive to inspect all attached files. Download everything concurrently into an organized folder (`~/Downloads/<Post Title>/`) or select individual files.
-- **Intelligent Mirror Failover** — automatically falls back to high-speed Pawchive CDN (`file.pawchive.pw`) when Kemono storage servers encounter downtime or regional routing issues.
+- **Smart Target Routing** — zero-config router automatically classifies inputs into Video/Music (`yt-dlp`), P2P (`aria2c torrent`), or Direct Files without requiring manual CLI flags.
 - **BitTorrent & Magnet Transfers** — fast DHT transfers with real-time peer count, seed count, transfer speed, and ETA countdown.
 - **16-Connection Acceleration** — splits direct files into parallel chunks via `aria2c` (`-x -s -k 1M -j`) to saturate available bandwidth.
 - **Pristine Audio & ID3 Metadata** — extracts audio in your preferred format (`mp3`, `m4a`, `opus`, `flac`, `wav`), exposes uncompressed native Opus/AAC streams, and embeds album art and ID3 metadata tags.
@@ -111,7 +108,7 @@ sudo mv anpan /usr/local/bin/
 
 ## Prerequisites
 
-- **aria2** (*recommended for multi-connection acceleration, archives, and BitTorrent*):
+- **aria2** (*recommended for multi-connection acceleration and BitTorrent*):
   - **Arch Linux**: `sudo pacman -S aria2`
   - **Debian / Ubuntu**: `sudo apt install aria2`
   - **Fedora**: `sudo dnf install aria2`
@@ -130,10 +127,6 @@ anpan https://youtu.be/dQw4w9WgXcQ
 
 # Trim a specific time range:
 anpan "https://youtu.be/dQw4w9WgXcQ 01:20-03:45"
-
-# Creator archive post (batch download all attachments):
-anpan https://kemono.cr/patreon/user/49965584/post/150370074
-anpan https://pawchive.st/fanbox/user/3873554/post/12509033
 
 # BitTorrent transfer (Magnet link or .torrent):
 anpan "magnet:?xt=urn:btih:d540fc48eb12f2833163eed6421d449dd8f1ce1f&dn=ArchLinux"
