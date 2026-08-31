@@ -55,17 +55,39 @@
 
 ## Installation
 
-### Standalone Binary (macOS / Linux)
+### Standalone Installer *(Recommended)*
 
+**macOS / Linux:**
 ```sh
 curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | bash
 ```
 
-### Windows (PowerShell)
-
+**Windows (PowerShell):**
 ```powershell
 irm https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.ps1 | iex
 ```
+
+---
+
+### Arch Linux (AUR)
+
+For Arch Linux / Manjaro / EndeavourOS users who prefer package management:
+
+**Prebuilt binary (fastest):**
+```sh
+yay -S anpan-bin
+# or
+paru -S anpan-bin
+```
+
+**Development version (latest master):**
+```sh
+yay -S anpan-git
+# or
+paru -S anpan-git
+```
+
+---
 
 ### From Source (Go 1.24+)
 
@@ -76,11 +98,24 @@ go build -o anpan .
 sudo mv anpan /usr/local/bin/
 ```
 
-### Update anpan
+---
 
-```sh
-anpan update
-```
+## Update
+
+- **Standalone installation (Recommended)**:
+  Run the built-in update command anytime:
+  ```sh
+  anpan update
+  ```
+  *(Or re-run the install script)*.
+
+- **AUR installation**:
+  Update along with your system via your AUR helper:
+  ```sh
+  yay -Syu
+  # or
+  paru -Syu
+  ```
 
 ## Prerequisites
 
