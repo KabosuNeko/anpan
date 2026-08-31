@@ -49,7 +49,7 @@ var updateCmd = &cobra.Command{
 				if err := checkCmd.Run(); err == nil {
 					fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
 					fmt.Println("→ Please update using your AUR helper:")
-					fmt.Println("   yay -Syu anpan-bin   (or paru -Syu anpan-bin)")
+					fmt.Println("   yay -Syu --devel   (or paru -Syu --devel)")
 					return nil
 				}
 			}

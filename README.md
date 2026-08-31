@@ -71,16 +71,8 @@ irm https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.ps1 | iex
 
 ### Arch Linux (AUR)
 
-For Arch Linux / Manjaro / EndeavourOS users who prefer package management:
+For Arch Linux / Manjaro / EndeavourOS users:
 
-**Prebuilt binary (fastest):**
-```sh
-yay -S anpan-bin
-# or
-paru -S anpan-bin
-```
-
-**Development version (latest master):**
 ```sh
 yay -S anpan-git
 # or
