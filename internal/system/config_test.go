@@ -1,0 +1,54 @@
+package system
+
+import (
+	"os"
+	"testing"
+)
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	if !cfg.Aria2c {
+		t.Errorf("expected Aria2c true by default")
+	}
+	if cfg.Connections != 16 {
+		t.Errorf("expected Connections 16 by default, got %d", cfg.Connections)
+	}
+	if cfg.VideoContainer != "mp4" {
+		t.Errorf("expected mp4 container by default, got %s", cfg.VideoContainer)
+	}
+	if cfg.AudioFormat != "mp3" {
+		t.Errorf("expected mp3 audioFormat by default, got %s", cfg.AudioFormat)
+	}
+}
+
+func TestSaveAndLoadConfig(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "anpan-config-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	cfg := DefaultConfig()
+	cfg.Connections = 32
+	cfg.PreferQuality = "1080p"
+	cfg.AudioFormat = "flac"
+
+	if err := SaveConfig(cfg); err != nil {
+		t.Fatalf("SaveConfig failed: %v", err)
+	}
+
+	loaded := LoadConfig()
+	if loaded.Connections != 32 {
+		t.Errorf("expected 32 connections, got %d", loaded.Connections)
+	}
+	if loaded.PreferQuality != "1080p" {
+		t.Errorf("expected preferQuality 1080p, got %s", loaded.PreferQuality)
+	}
+	if loaded.AudioFormat != "flac" {
+		t.Errorf("expected audioFormat flac, got %s", loaded.AudioFormat)
+	}
+}
