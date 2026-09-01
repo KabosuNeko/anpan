@@ -1,7 +1,6 @@
 package system
 
 import (
-	"os"
 	"testing"
 )
 
@@ -34,15 +33,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestSaveAndLoadConfig(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "anpan-config-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	isolateTestHome(t)
 
 	cfg := DefaultConfig()
 	cfg.Connections = 32

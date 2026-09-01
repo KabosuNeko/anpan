@@ -10,6 +10,12 @@ import (
 )
 
 func TestAppHistoryNavigation(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	t.Setenv("HOMEDRIVE", "")
+	t.Setenv("HOMEPATH", "")
+
 	system.AddToHistory("https://example.com/first")
 	system.AddToHistory("https://example.com/second")
 
