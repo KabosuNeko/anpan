@@ -1,20 +1,20 @@
 package system
 
 import (
-	"os"
 	"testing"
 )
 
-func TestAddToHistoryAndLoad(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "anpan-history-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
+func isolateTestHome(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	t.Setenv("HOMEDRIVE", "")
+	t.Setenv("HOMEPATH", "")
+}
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+func TestAddToHistoryAndLoad(t *testing.T) {
+	isolateTestHome(t)
 
 	AddToHistory("https://example.com/1")
 	AddToHistory("https://example.com/2")
