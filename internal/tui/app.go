@@ -314,6 +314,7 @@ func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
 		}
 		opts := &engine.ExtractPortionsOptions{
 			VideoContainer: m.config.VideoContainer,
+			VideoCodec:     m.config.VideoCodec,
 			AudioFormat:    m.config.AudioFormat,
 			EmbedMetadata:  &m.config.EmbedMetadata,
 		}
@@ -625,6 +626,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					plPortions := engine.ExtractPlaylistPortions(&engine.ExtractPortionsOptions{
 						EmbedMetadata:  &m.config.EmbedMetadata,
 						VideoContainer: m.config.VideoContainer,
+						VideoCodec:     m.config.VideoCodec,
 						AudioFormat:    m.config.AudioFormat,
 					})
 					m.portions = plPortions

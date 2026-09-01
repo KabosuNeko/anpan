@@ -13,6 +13,7 @@ type AnpanConfig struct {
 	OutDir         string `json:"outDir"`
 	PreferQuality  string `json:"preferQuality"`  // "ask" | "best" | "1080p" | "audio"
 	VideoContainer string `json:"videoContainer"` // "mp4" | "mkv" | "webm"
+	VideoCodec     string `json:"videoCodec"`     // "auto" | "av1" | "vp9" | "avc"
 	AudioFormat    string `json:"audioFormat"`    // "mp3" | "m4a" | "opus" | "flac" | "wav"
 	CookiesBrowser string `json:"cookiesBrowser"` // "none" | "chrome" | "firefox" | "brave" | "edge" | "safari"
 	Subtitles      string `json:"subtitles"`      // "off" | "embed" | "write"
@@ -31,6 +32,7 @@ func DefaultConfig() AnpanConfig {
 		OutDir:         filepath.Join(home, "Downloads"),
 		PreferQuality:  "ask",
 		VideoContainer: "mp4",
+		VideoCodec:     "auto",
 		AudioFormat:    "mp3",
 		CookiesBrowser: "none",
 		Subtitles:      "off",
@@ -65,6 +67,9 @@ func LoadConfig() AnpanConfig {
 		}
 		if loaded.VideoContainer == "" {
 			loaded.VideoContainer = cfg.VideoContainer
+		}
+		if loaded.VideoCodec == "" {
+			loaded.VideoCodec = cfg.VideoCodec
 		}
 		if loaded.AudioFormat == "" {
 			loaded.AudioFormat = cfg.AudioFormat

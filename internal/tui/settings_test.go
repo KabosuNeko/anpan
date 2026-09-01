@@ -28,6 +28,12 @@ func TestCycleConfig(t *testing.T) {
 	if cfg.PreferQuality != "best" {
 		t.Errorf("expected PreferQuality to be best, got %s", cfg.PreferQuality)
 	}
+	// Video codec cycle
+	cfg.VideoCodec = "auto"
+	CycleConfig(&cfg, "videoCodec", 1)
+	if cfg.VideoCodec != "av1" {
+		t.Errorf("expected VideoCodec to be av1, got %s", cfg.VideoCodec)
+	}
 }
 
 func TestFormatSettingVal(t *testing.T) {
@@ -37,5 +43,8 @@ func TestFormatSettingVal(t *testing.T) {
 	}
 	if val := FormatSettingVal("connections", cfg); val != "16" {
 		t.Errorf("expected '16', got %s", val)
+	}
+	if val := FormatSettingVal("videoCodec", cfg); val != "auto" {
+		t.Errorf("expected 'auto', got %s", val)
 	}
 }

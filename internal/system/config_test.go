@@ -16,6 +16,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.VideoContainer != "mp4" {
 		t.Errorf("expected mp4 container by default, got %s", cfg.VideoContainer)
 	}
+	if cfg.VideoCodec != "auto" {
+		t.Errorf("expected auto videoCodec by default, got %s", cfg.VideoCodec)
+	}
 	if cfg.AudioFormat != "mp3" {
 		t.Errorf("expected mp3 audioFormat by default, got %s", cfg.AudioFormat)
 	}

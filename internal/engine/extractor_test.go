@@ -109,6 +109,35 @@ func TestCleanAlbumTitle(t *testing.T) {
 	}
 }
 
+func TestExtractPortionsVideoCodec(t *testing.T) {
+	meta := VideoMeta{
+		Title: "Multi Codec Video",
+		Formats: []RawStream{
+			{FormatID: "v1080_av1", Vcodec: "av01.0.08M.08", Height: intPtr(1080), TBR: floatPtr(2000)},
+			{FormatID: "v1080_vp9", Vcodec: "vp09.00.41.08", Height: intPtr(1080), TBR: floatPtr(2000)},
+			{FormatID: "v1080_avc", Vcodec: "avc1.640028", Height: intPtr(1080), TBR: floatPtr(2000)},
+		},
+	}
+
+	// Test AV1 preference
+	portionsAV1 := ExtractPortions(meta, &ExtractPortionsOptions{VideoCodec: "av1"})
+	if len(portionsAV1) == 0 || !strings.Contains(portionsAV1[0].YtdlpArgs[1], "vcodec^=av01") {
+		t.Errorf("expected av1 selector in args: %v", portionsAV1[0].YtdlpArgs)
+	}
+
+	// Test VP9 preference
+	portionsVP9 := ExtractPortions(meta, &ExtractPortionsOptions{VideoCodec: "vp9"})
+	if len(portionsVP9) == 0 || !strings.Contains(portionsVP9[0].YtdlpArgs[1], "vcodec^=vp09") {
+		t.Errorf("expected vp9 selector in args: %v", portionsVP9[0].YtdlpArgs)
+	}
+
+	// Test AVC preference
+	portionsAVC := ExtractPortions(meta, &ExtractPortionsOptions{VideoCodec: "avc"})
+	if len(portionsAVC) == 0 || !strings.Contains(portionsAVC[0].YtdlpArgs[1], "vcodec^=avc1") {
+		t.Errorf("expected avc selector in args: %v", portionsAVC[0].YtdlpArgs)
+	}
+}
+
 func TestExtractPlaylistPortions(t *testing.T) {
 	plPortions := ExtractPlaylistPortions(&ExtractPortionsOptions{
 		VideoContainer: "webm",

@@ -22,6 +22,7 @@ var SettingItems = []SettingItem{
 	{Key: "askSaveDir", Label: "ask save location"},
 	{Key: "outDir", Label: "default save dir"},
 	{Key: "videoContainer", Label: "video format (container)"},
+	{Key: "videoCodec", Label: "video codec preference"},
 	{Key: "audioFormat", Label: "audio format"},
 	{Key: "subtitles", Label: "subtitles"},
 	{Key: "subLangs", Label: "subtitle languages"},
@@ -38,6 +39,7 @@ var (
 	connectionChoices = []int{4, 8, 16, 32}
 	qualityChoices    = []string{"ask", "best", "1080p", "audio"}
 	containerChoices  = []string{"mp4", "mkv", "webm"}
+	codecChoices      = []string{"auto", "av1", "vp9", "avc"}
 	audioChoices      = []string{"mp3", "m4a", "opus", "flac", "wav"}
 	subtitleChoices   = []string{"off", "embed", "write"}
 	sublangChoices    = []string{"vi,en", "all", "en"}
@@ -83,6 +85,8 @@ func FormatSettingVal(key string, cfg system.AnpanConfig) string {
 		return fmt.Sprintf("%d", cfg.Connections)
 	case "videoContainer":
 		return cfg.VideoContainer
+	case "videoCodec":
+		return cfg.VideoCodec
 	case "audioFormat":
 		return cfg.AudioFormat
 	case "subtitles":
@@ -142,6 +146,16 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 		}
 		next := (idx + dir + len(containerChoices)) % len(containerChoices)
 		cfg.VideoContainer = containerChoices[next]
+	case "videoCodec":
+		idx := 0
+		for i, c := range codecChoices {
+			if c == cfg.VideoCodec {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(codecChoices)) % len(codecChoices)
+		cfg.VideoCodec = codecChoices[next]
 	case "audioFormat":
 		idx := 0
 		for i, a := range audioChoices {

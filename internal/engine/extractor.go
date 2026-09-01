@@ -56,6 +56,7 @@ type Portion struct {
 type ExtractPortionsOptions struct {
 	EmbedMetadata  *bool
 	VideoContainer string // "mp4" | "mkv" | "webm"
+	VideoCodec     string // "auto" | "av1" | "vp9" | "avc"
 	AudioFormat    string // "mp3" | "m4a" | "opus" | "flac" | "wav"
 }
 
@@ -116,16 +117,36 @@ func ProbeVideo(ctx context.Context, ytdlpBin string, rawURL string) (*ProbeResu
 	}, nil
 }
 
-func scoreStream(s RawStream, preferredContainer string) float64 {
+func scoreStream(s RawStream, preferredContainer string, preferredCodec string) float64 {
 	score := float64(0)
 	if s.TBR != nil {
 		score = *s.TBR
 	}
 	if s.Ext == preferredContainer {
-		score += 10000
+		score += 1000
 	}
-	if strings.HasPrefix(s.Vcodec, "avc") {
-		score += 5000
+	switch preferredCodec {
+	case "av1":
+		if strings.HasPrefix(s.Vcodec, "av01") {
+			score += 50000
+		}
+	case "vp9":
+		if strings.HasPrefix(s.Vcodec, "vp09") || strings.HasPrefix(s.Vcodec, "vp9") {
+			score += 50000
+		}
+	case "avc":
+		if strings.HasPrefix(s.Vcodec, "avc") || strings.HasPrefix(s.Vcodec, "h264") {
+			score += 50000
+		}
+	default:
+		// "auto": prioritize quality-per-bitrate: AV1 > VP9 > AVC
+		if strings.HasPrefix(s.Vcodec, "av01") {
+			score += 3000
+		} else if strings.HasPrefix(s.Vcodec, "vp09") || strings.HasPrefix(s.Vcodec, "vp9") {
+			score += 2000
+		} else if strings.HasPrefix(s.Vcodec, "avc") || strings.HasPrefix(s.Vcodec, "h264") {
+			score += 1000
+		}
 	}
 	return score
 }
@@ -136,6 +157,7 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 
 	container := "mp4"
 	audioFmt := "mp3"
+	codec := "auto"
 	embedMetadata := true
 	if opts != nil {
 		if opts.VideoContainer != "" {
@@ -143,6 +165,9 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 		}
 		if opts.AudioFormat != "" {
 			audioFmt = opts.AudioFormat
+		}
+		if opts.VideoCodec != "" {
+			codec = opts.VideoCodec
 		}
 		if opts.EmbedMetadata != nil {
 			embedMetadata = *opts.EmbedMetadata
@@ -230,7 +255,7 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			continue
 		}
 		sort.Slice(candidates, func(i, j int) bool {
-			return scoreStream(candidates[i], container) > scoreStream(candidates[j], container)
+			return scoreStream(candidates[i], container, codec) > scoreStream(candidates[j], container, codec)
 		})
 		best := candidates[0]
 		isMuxed := best.Acodec != "" && best.Acodec != "none"
@@ -277,12 +302,24 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			hdrTag = " HDR"
 		}
 
+		var ytdlpSelector string
+		switch codec {
+		case "av1":
+			ytdlpSelector = fmt.Sprintf("bv*[height=%d][vcodec^=av01]+ba/bv*[height=%d]+ba/b[height=%d]/bv*[height<=%d]+ba/b", height, height, height, height)
+		case "vp9":
+			ytdlpSelector = fmt.Sprintf("bv*[height=%d][vcodec^=vp09]+ba/bv*[height=%d]+ba/b[height=%d]/bv*[height<=%d]+ba/b", height, height, height, height)
+		case "avc":
+			ytdlpSelector = fmt.Sprintf("bv*[height=%d][vcodec^=avc1]+ba/bv*[height=%d]+ba/b[height=%d]/bv*[height<=%d]+ba/b", height, height, height, height)
+		default:
+			ytdlpSelector = fmt.Sprintf("bv*[height=%d]+ba/b[height=%d]/bv*[height<=%d]+ba/b", height, height, height)
+		}
+
 		portions = append(portions, Portion{
 			Kind:  PortionKindVideo,
 			Label: fmt.Sprintf("%dp%s%s · %s%s", height, fpsTag, hdrTag, container, sizeTag),
 			YtdlpArgs: []string{
 				"-f",
-				fmt.Sprintf("bv*[height=%d]+ba/b[height=%d]/bv*[height<=%d]+ba/b", height, height, height),
+				ytdlpSelector,
 				"--merge-output-format",
 				container,
 			},
@@ -526,6 +563,7 @@ func ProbePlaylist(ctx context.Context, ytdlpBin string, rawURL string) (*Playli
 func ExtractPlaylistPortions(opts *ExtractPortionsOptions) []Portion {
 	container := "mp4"
 	audioFmt := "mp3"
+	codec := "auto"
 	embedMetadata := true
 	if opts != nil {
 		if opts.VideoContainer != "" {
@@ -533,6 +571,9 @@ func ExtractPlaylistPortions(opts *ExtractPortionsOptions) []Portion {
 		}
 		if opts.AudioFormat != "" {
 			audioFmt = opts.AudioFormat
+		}
+		if opts.VideoCodec != "" {
+			codec = opts.VideoCodec
 		}
 		if opts.EmbedMetadata != nil {
 			embedMetadata = *opts.EmbedMetadata
@@ -576,10 +617,22 @@ func ExtractPlaylistPortions(opts *ExtractPortionsOptions) []Portion {
 		})
 	}
 
+	var videoSelector string
+	switch codec {
+	case "av1":
+		videoSelector = "bv*[vcodec^=av01]+ba/bv*+ba/b"
+	case "vp9":
+		videoSelector = "bv*[vcodec^=vp09]+ba/bv*+ba/b"
+	case "avc":
+		videoSelector = "bv*[vcodec^=avc1]+ba/bv*+ba/b"
+	default:
+		videoSelector = "bv*+ba/b"
+	}
+
 	portions = append(portions, Portion{
 		Kind:      PortionKindVideo,
 		Label:     fmt.Sprintf("all videos · %s (best quality)", container),
-		YtdlpArgs: []string{"-f", "bv*+ba/b", "--merge-output-format", container},
+		YtdlpArgs: []string{"-f", videoSelector, "--merge-output-format", container},
 	})
 
 	return portions
