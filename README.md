@@ -31,7 +31,7 @@ See [docs/SUPPORTED_SITES.md](docs/SUPPORTED_SITES.md) for URL schemes and backe
 
 ## Installation
 
-### Script installer
+### Script installer (Recommended)
 
 **Linux / macOS:**
 ```sh
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | 
 irm https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.ps1 | iex
 ```
 
-### Arch Linux (AUR)
+### Arch Linux (AUR) (not recommended)
 
 ```sh
 yay -S anpan-git
@@ -64,6 +64,9 @@ sudo mv anpan /usr/local/bin/
 
 ```sh
 anpan update
+
+# Aur
+yay -S anpan-git
 ```
 
 ## Uninstall
@@ -72,6 +75,9 @@ anpan update
 anpan uninstall
 # or remove config and cache completely:
 anpan uninstall --purge -y
+
+# Aur
+yay -Rns anpan-git
 ```
 
 ## Documentation
