@@ -34,6 +34,20 @@ func TestUpdateCmd(t *testing.T) {
 	}
 }
 
+func TestUninstallCmd(t *testing.T) {
+	if uninstallCmd.Use != "uninstall" {
+		t.Errorf("unexpected Use: %s", uninstallCmd.Use)
+	}
+	pFlag := uninstallCmd.Flags().Lookup("purge")
+	if pFlag == nil || pFlag.Shorthand != "p" {
+		t.Errorf("expected -p/--purge flag")
+	}
+	yFlag := uninstallCmd.Flags().Lookup("yes")
+	if yFlag == nil || yFlag.Shorthand != "y" {
+		t.Errorf("expected -y/--yes flag")
+	}
+}
+
 func TestUpdateCmdExecution(t *testing.T) {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)

@@ -101,10 +101,32 @@ sudo mv anpan /usr/local/bin/
 - **AUR installation**:
   Update along with your system via your AUR helper:
   ```sh
-  yay -Syu
+  yay -Syu --devel
   # or
-  paru -Syu
+  paru -Syu --devel
   ```
+
+---
+
+## Uninstall
+
+- **Standalone installation**:
+  Run the built-in uninstall command:
+  ```sh
+  anpan uninstall
+  # Or also remove all configuration and helper cache:
+  anpan uninstall --purge
+  ```
+
+- **AUR installation**:
+  Uninstall using your AUR helper or pacman:
+  ```sh
+  yay -R anpan-git
+  # or
+  paru -R anpan-git
+  ```
+
+---
 
 ## Prerequisites
 
