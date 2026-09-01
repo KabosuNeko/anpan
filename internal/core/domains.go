@@ -31,6 +31,17 @@ var knownSites = []knownSite{
 	{hosts: []string{"kemono.cr", "kemono.su", "kemono.party"}, site: SiteInfo{Key: "kemono", Label: "Kemono"}},
 	{hosts: []string{"coomer.su", "coomer.party", "coomer.st"}, site: SiteInfo{Key: "coomer", Label: "Coomer"}},
 	{hosts: []string{"pawchive.st", "pawchive.pw"}, site: SiteInfo{Key: "pawchive", Label: "Pawchive"}},
+	{hosts: []string{"pixiv.net", "pixiv.me"}, site: SiteInfo{Key: "pixiv", Label: "Pixiv"}},
+	{hosts: []string{"yande.re"}, site: SiteInfo{Key: "yandere", Label: "Yande.re"}},
+	{hosts: []string{"konachan.com", "konachan.net"}, site: SiteInfo{Key: "konachan", Label: "Konachan"}},
+	{hosts: []string{"safebooru.org"}, site: SiteInfo{Key: "safebooru", Label: "Safebooru"}},
+	{hosts: []string{"gelbooru.com"}, site: SiteInfo{Key: "gelbooru", Label: "Gelbooru"}},
+	{hosts: []string{"pixeldrain.com"}, site: SiteInfo{Key: "pixeldrain", Label: "Pixeldrain"}},
+	{hosts: []string{"drive.google.com"}, site: SiteInfo{Key: "gdrive", Label: "Google Drive"}},
+	{hosts: []string{"catbox.moe"}, site: SiteInfo{Key: "catbox", Label: "Catbox"}},
+	{hosts: []string{"mediafire.com"}, site: SiteInfo{Key: "mediafire", Label: "MediaFire"}},
+	{hosts: []string{"imgur.com"}, site: SiteInfo{Key: "imgur", Label: "Imgur"}},
+	{hosts: []string{"archive.org"}, site: SiteInfo{Key: "archive_org", Label: "Internet Archive"}},
 }
 
 func IdentifySite(rawURL string) SiteInfo {

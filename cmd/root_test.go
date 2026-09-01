@@ -6,13 +6,23 @@ import (
 )
 
 func TestRootCmdFlags(t *testing.T) {
-	if rootCmd.Use != "anpan [url|magnet|file]" {
+	if rootCmd.Use != "anpan [url|magnet|file...]" {
 		t.Errorf("unexpected Use: %s", rootCmd.Use)
 	}
 
 	oFlag := rootCmd.Flags().Lookup("output")
 	if oFlag == nil || oFlag.Shorthand != "o" {
 		t.Errorf("expected -o/--output flag")
+	}
+
+	iFlag := rootCmd.Flags().Lookup("input")
+	if iFlag == nil || iFlag.Shorthand != "i" {
+		t.Errorf("expected -i/--input flag")
+	}
+
+	fFlag := rootCmd.Flags().Lookup("file")
+	if fFlag == nil || fFlag.Shorthand != "f" {
+		t.Errorf("expected -f/--file flag")
 	}
 
 	outDirFlag := rootCmd.Flags().Lookup("out-dir")

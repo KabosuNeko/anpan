@@ -32,6 +32,9 @@ var SettingItems = []SettingItem{
 	{Key: "connections", Label: "aria2c connections (-x -s)"},
 	{Key: "embedMetadata", Label: "embed audio tags & cover"},
 	{Key: "writeThumbnail", Label: "write thumbnail image"},
+	{Key: "lyrics", Label: "download synced lyrics (.lrc)"},
+	{Key: "speedLimit", Label: "speed limit"},
+	{Key: "notifications", Label: "desktop notifications"},
 	{Key: "preferQuality", Label: "auto-select quality"},
 }
 
@@ -41,6 +44,8 @@ var (
 	containerChoices  = []string{"mp4", "mkv", "webm"}
 	codecChoices      = []string{"auto", "av1", "vp9", "avc"}
 	audioChoices      = []string{"mp3", "m4a", "opus", "flac", "wav"}
+	lyricsChoices     = []string{"synced", "off"}
+	speedLimitChoices = []string{"unlimited", "1M", "5M", "10M", "20M", "50M"}
 	subtitleChoices   = []string{"off", "embed", "write"}
 	sublangChoices    = []string{"vi,en", "all", "en"}
 	sponsorChoices    = []string{"off", "remove", "mark"}
@@ -81,6 +86,21 @@ func FormatSettingVal(key string, cfg system.AnpanConfig) string {
 			return "on"
 		}
 		return "off"
+	case "notifications":
+		if cfg.Notifications {
+			return "on"
+		}
+		return "off"
+	case "speedLimit":
+		if cfg.SpeedLimit == "" {
+			return "unlimited"
+		}
+		return cfg.SpeedLimit
+	case "lyrics":
+		if cfg.Lyrics == "" {
+			return "synced"
+		}
+		return cfg.Lyrics
 	case "connections":
 		return fmt.Sprintf("%d", cfg.Connections)
 	case "videoContainer":
@@ -116,6 +136,8 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 		cfg.EmbedMetadata = !cfg.EmbedMetadata
 	case "writeThumbnail":
 		cfg.WriteThumbnail = !cfg.WriteThumbnail
+	case "notifications":
+		cfg.Notifications = !cfg.Notifications
 	case "connections":
 		idx := 2
 		for i, c := range connectionChoices {
@@ -206,6 +228,26 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 		}
 		next := (idx + dir + len(cookiesChoices)) % len(cookiesChoices)
 		cfg.CookiesBrowser = cookiesChoices[next]
+	case "speedLimit":
+		idx := 0
+		for i, s := range speedLimitChoices {
+			if s == cfg.SpeedLimit {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(speedLimitChoices)) % len(speedLimitChoices)
+		cfg.SpeedLimit = speedLimitChoices[next]
+	case "lyrics":
+		idx := 0
+		for i, l := range lyricsChoices {
+			if l == cfg.Lyrics {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(lyricsChoices)) % len(lyricsChoices)
+		cfg.Lyrics = lyricsChoices[next]
 	case "outDir":
 		presets := getDirPresets()
 		curNorm := filepath.Clean(cfg.OutDir)

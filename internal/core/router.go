@@ -123,6 +123,88 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 		return nil, fmt.Errorf("no downloadable files or attachments found in this post")
 	}
 
+	if engine.IsPixivURL(cleanURL) {
+		archive, err := engine.ProbePixivPost(ctx, cleanURL)
+		if err != nil {
+			return nil, fmt.Errorf("pixiv artwork could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
+			return &TargetInspection{
+				Type:        TargetArchive,
+				ArchivePost: archive,
+			}, nil
+		}
+		return nil, fmt.Errorf("no images found for this pixiv artwork")
+	}
+
+	if engine.IsBooruURL(cleanURL) {
+		archive, err := engine.ProbeBooruPost(ctx, cleanURL)
+		if err != nil {
+			return nil, fmt.Errorf("booru post could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
+			return &TargetInspection{
+				Type:        TargetArchive,
+				ArchivePost: archive,
+			}, nil
+		}
+		return nil, fmt.Errorf("no image found for this booru post")
+	}
+
+	if engine.IsPixeldrainListURL(cleanURL) {
+		archive, err := engine.ProbePixeldrainList(ctx, cleanURL)
+		if err != nil {
+			return nil, fmt.Errorf("pixeldrain list could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
+			return &TargetInspection{
+				Type:        TargetArchive,
+				ArchivePost: archive,
+			}, nil
+		}
+		return nil, fmt.Errorf("no files found in this pixeldrain list")
+	}
+
+	if engine.IsImgurURL(cleanURL) {
+		archive, err := engine.ProbeImgurAlbum(ctx, cleanURL)
+		if err != nil {
+			return nil, fmt.Errorf("imgur album could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
+			return &TargetInspection{
+				Type:        TargetArchive,
+				ArchivePost: archive,
+			}, nil
+		}
+		return nil, fmt.Errorf("no images found in this imgur album")
+	}
+
+	if engine.IsArchiveOrgURL(cleanURL) {
+		archive, err := engine.ProbeArchiveOrg(ctx, cleanURL)
+		if err != nil {
+			return nil, fmt.Errorf("archive.org item could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
+			return &TargetInspection{
+				Type:        TargetArchive,
+				ArchivePost: archive,
+			}, nil
+		}
+		return nil, fmt.Errorf("no files found in this archive.org item")
+	}
+
+	if engine.IsCloudHostURL(cleanURL) {
+		cloudFile, err := engine.ProbeCloudHost(ctx, cleanURL)
+		if err == nil && cloudFile != nil {
+			return &TargetInspection{
+				Type:     TargetDirect,
+				URL:      cloudFile.URL,
+				Filename: cloudFile.Filename,
+				Size:     cloudFile.Size,
+			}, nil
+		}
+	}
+
 	site := IdentifySite(cleanURL)
 	if parsedInput.TimeRange != "" || site.Key != "generic" {
 		return &TargetInspection{

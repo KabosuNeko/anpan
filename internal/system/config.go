@@ -21,6 +21,9 @@ type AnpanConfig struct {
 	SponsorBlock   string `json:"sponsorBlock"`   // "off" | "remove" | "mark"
 	EmbedMetadata  bool   `json:"embedMetadata"`
 	WriteThumbnail bool   `json:"writeThumbnail"`
+	Notifications  bool   `json:"notifications"`
+	SpeedLimit     string `json:"speedLimit"` // "unlimited" | "1M" | "5M" | "10M" | "20M" | "50M"
+	Lyrics         string `json:"lyrics"`     // "synced" | "off"
 }
 
 func DefaultConfig() AnpanConfig {
@@ -40,6 +43,9 @@ func DefaultConfig() AnpanConfig {
 		SponsorBlock:   "off",
 		EmbedMetadata:  true,
 		WriteThumbnail: false,
+		Notifications:  true,
+		SpeedLimit:     "unlimited",
+		Lyrics:         "synced",
 	}
 }
 
@@ -54,7 +60,7 @@ func LoadConfig() AnpanConfig {
 	if err != nil {
 		return cfg
 	}
-	var loaded AnpanConfig
+	loaded := cfg
 	if err := json.Unmarshal(data, &loaded); err == nil {
 		if loaded.Connections != 4 && loaded.Connections != 8 && loaded.Connections != 16 && loaded.Connections != 32 {
 			loaded.Connections = cfg.Connections

@@ -440,7 +440,10 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 
 		audioArgs := []string{"-f", ytdlpSelector, "-x", "--audio-format", key}
 		if embedMetadata {
-			audioArgs = append(audioArgs, "--embed-thumbnail", "--add-metadata")
+			if key != "wav" {
+				audioArgs = append(audioArgs, "--embed-thumbnail")
+			}
+			audioArgs = append(audioArgs, "--add-metadata")
 		}
 
 		portions = append(portions, Portion{
@@ -462,7 +465,10 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 		}
 		audioArgs := []string{"-f", "ba/b", "-x", "--audio-format", audioFmt, "--audio-quality", "0"}
 		if embedMetadata {
-			audioArgs = append(audioArgs, "--embed-thumbnail", "--add-metadata")
+			if audioFmt != "wav" {
+				audioArgs = append(audioArgs, "--embed-thumbnail")
+			}
+			audioArgs = append(audioArgs, "--add-metadata")
 		}
 		portions = append(portions, Portion{
 			Kind:      PortionKindAudio,

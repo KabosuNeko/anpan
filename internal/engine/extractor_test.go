@@ -7,7 +7,7 @@ import (
 )
 
 func floatPtr(v float64) *float64 { return &v }
-func intPtr(v int) *int             { return &v }
+func intPtr(v int) *int           { return &v }
 
 func TestExtractPortionsListsAllResolutions(t *testing.T) {
 	meta := VideoMeta{
