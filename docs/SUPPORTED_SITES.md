@@ -124,3 +124,4 @@ Backend: `aria2c`.
 
 - **Formats**: Magnet URIs (`magnet:?xt=...`), `.torrent` files or URLs.
 - **Features**: DHT, PEX, seed/peer tracking, automatic exit on complete.
+- **Privacy notice**: BitTorrent swarms expose your public IP address to all connecting peers. Using a VPN is recommended for sensitive transfers.
