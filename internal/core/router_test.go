@@ -42,4 +42,16 @@ func TestInspectTarget(t *testing.T) {
 	if err != nil || res4.Type != TargetDirect || res4.Filename != "latest-nixos-minimal-x86_64-linux.iso" {
 		t.Errorf("InspectTarget direct failed: %+v, err: %v", res4, err)
 	}
+
+	if !testing.Short() {
+		resKemono, err := InspectTarget(ctx, "https://kemono.cr/patreon/user/49965584/post/142699525")
+		if err != nil || resKemono.Type != TargetArchive || resKemono.ArchivePost == nil {
+			t.Errorf("InspectTarget kemono failed: %+v, err: %v", resKemono, err)
+		}
+
+		resCoomer, err := InspectTarget(ctx, "https://coomer.st/onlyfans/user/anaimiya/post/1942401985")
+		if err != nil || resCoomer.Type != TargetArchive || resCoomer.ArchivePost == nil {
+			t.Errorf("InspectTarget coomer failed: %+v, err: %v", resCoomer, err)
+		}
+	}
 }
