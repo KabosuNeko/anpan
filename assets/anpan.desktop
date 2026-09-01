@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Anpan
+GenericName=Media & File Downloader
+Comment=Feed a link, bake a file
+Exec=anpan %U
+Icon=anpan
+Terminal=true
+Categories=Network;FileTransfer;ConsoleOnly;
+Keywords=downloader;video;audio;torrent;youtube;media;download;
+MimeType=x-scheme-handler/magnet;
