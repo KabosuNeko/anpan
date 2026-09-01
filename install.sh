@@ -74,6 +74,22 @@ chmod +x "$INSTALL_PATH"
 
 echo "✓ Installed $BIN_NAME to $INSTALL_PATH"
 
+# Install Desktop Entry & Icon on Linux
+if [ "$os" = "linux" ]; then
+  if [ -f "$TMP_DIR/assets/anpan.desktop" ]; then
+    mkdir -p "$HOME/.local/share/applications"
+    cp "$TMP_DIR/assets/anpan.desktop" "$HOME/.local/share/applications/anpan.desktop"
+  fi
+  if [ -f "$TMP_DIR/assets/anpan.png" ]; then
+    mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps" "$HOME/.local/share/pixmaps"
+    cp "$TMP_DIR/assets/anpan.png" "$HOME/.local/share/icons/hicolor/256x256/apps/anpan.png"
+    cp "$TMP_DIR/assets/anpan.png" "$HOME/.local/share/pixmaps/anpan.png"
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  fi
+fi
+
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
   echo ""
   PROFILE=""

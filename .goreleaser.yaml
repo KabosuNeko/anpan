@@ -37,6 +37,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - assets/*
 
 checksum:
   name_template: "sha256sums.txt"

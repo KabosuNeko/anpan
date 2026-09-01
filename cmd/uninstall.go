@@ -68,6 +68,19 @@ var uninstallCmd = &cobra.Command{
 		anpanBinDir := filepath.Join(home, ".anpan")
 		configDir := filepath.Join(home, ".config", "anpan")
 
+		// Remove desktop entry & icon on Linux
+		if runtime.GOOS == "linux" {
+			desktopFile := filepath.Join(home, ".local", "share", "applications", "anpan.desktop")
+			iconFile := filepath.Join(home, ".local", "share", "icons", "hicolor", "256x256", "apps", "anpan.png")
+			pixmapFile := filepath.Join(home, ".local", "share", "pixmaps", "anpan.png")
+			_ = os.Remove(desktopFile)
+			_ = os.Remove(iconFile)
+			_ = os.Remove(pixmapFile)
+			if updateCmdPath, err := exec.LookPath("update-desktop-database"); err == nil {
+				_ = exec.Command(updateCmdPath, filepath.Join(home, ".local", "share", "applications")).Run()
+			}
+		}
+
 		if purgeUninstall {
 			if _, err := os.Stat(anpanBinDir); err == nil {
 				_ = os.RemoveAll(anpanBinDir)
