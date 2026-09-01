@@ -54,3 +54,35 @@ func TestParseArchiveURL(t *testing.T) {
 		t.Errorf("ParseArchiveURL failed: %+v", c)
 	}
 }
+
+func TestProbeArchivePostLive(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live network test in short mode")
+	}
+
+	// Test kemono
+	kemonoPost, err := ProbeArchivePost(t.Context(), "https://kemono.cr/patreon/user/49965584/post/142699525")
+	if err != nil {
+		t.Logf("Kemono probe warning (network dependent): %v", err)
+	} else {
+		if kemonoPost == nil || len(kemonoPost.Files) == 0 {
+			t.Errorf("Expected files in kemono post, got %v", kemonoPost)
+		}
+		if len(kemonoPost.Files) > 0 {
+			t.Logf("Kemono probed successfully: %d files, title: %q", len(kemonoPost.Files), kemonoPost.Title)
+		}
+	}
+
+	// Test coomer
+	coomerPost, err := ProbeArchivePost(t.Context(), "https://coomer.st/onlyfans/user/anaimiya/post/1942401985")
+	if err != nil {
+		t.Logf("Coomer probe warning (network dependent): %v", err)
+	} else {
+		if coomerPost == nil || len(coomerPost.Files) == 0 {
+			t.Errorf("Expected files in coomer post, got %v", coomerPost)
+		}
+		if len(coomerPost.Files) > 0 {
+			t.Logf("Coomer probed successfully: %d files, title: %q", len(coomerPost.Files), coomerPost.Title)
+		}
+	}
+}

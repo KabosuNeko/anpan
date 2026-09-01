@@ -1,9 +1,12 @@
 package engine
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -85,12 +88,12 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 		return nil, err
 	}
 
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 	if isPawchive {
 		req.Header.Set("Accept", "application/json")
 	} else {
-		req.Header.Set("Accept", "text/css,application/json")
+		req.Header.Set("Accept", "text/css")
 	}
-	req.Header.Set("Accept-Encoding", "identity")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -103,8 +106,31 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 		return nil, fmt.Errorf("archive api returned %s", resp.Status)
 	}
 
+	var reader io.Reader = resp.Body
+	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+		gzReader, err := gzip.NewReader(resp.Body)
+		if err == nil {
+			defer gzReader.Close()
+			reader = gzReader
+		}
+	} else {
+		buf := bufio.NewReader(resp.Body)
+		peek, _ := buf.Peek(2)
+		if len(peek) == 2 && peek[0] == 0x1f && peek[1] == 0x8b {
+			gzReader, err := gzip.NewReader(buf)
+			if err == nil {
+				defer gzReader.Close()
+				reader = gzReader
+			} else {
+				reader = buf
+			}
+		} else {
+			reader = buf
+		}
+	}
+
 	var rawData map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&rawData); err != nil {
+	if err := json.NewDecoder(reader).Decode(&rawData); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"mime"
 	"net/http"
 	"net/url"
@@ -110,12 +111,16 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 
 	if engine.IsArchivePostURL(cleanURL) {
 		archive, err := engine.ProbeArchivePost(ctx, cleanURL)
-		if err == nil && archive != nil && len(archive.Files) > 0 {
+		if err != nil {
+			return nil, fmt.Errorf("archive post could not be loaded: %w", err)
+		}
+		if archive != nil && len(archive.Files) > 0 {
 			return &TargetInspection{
 				Type:        TargetArchive,
 				ArchivePost: archive,
 			}, nil
 		}
+		return nil, fmt.Errorf("no downloadable files or attachments found in this post")
 	}
 
 	site := IdentifySite(cleanURL)
