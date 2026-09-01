@@ -19,6 +19,7 @@ type ArchiveFile struct {
 	Name    string   `json:"name"`
 	URL     string   `json:"url"`
 	Mirrors []string `json:"mirrors,omitempty"`
+	Headers []string `json:"headers,omitempty"`
 }
 
 type ArchivePost struct {

@@ -160,9 +160,10 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 type DirectDownloadOptions struct {
 	Aria2cBin   string
 	URL         string
-	Filename    string
 	OutputDir   string
+	Filename    string
 	Connections int
+	SpeedLimit  string
 }
 
 func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handlers BakeHandlers) (string, error) {
@@ -186,6 +187,9 @@ func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handler
 		"--auto-file-renaming=false",
 		"--allow-overwrite=true",
 	}
+	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
+	}
 	if opts.Filename != "" {
 		args = append(args, "-o", opts.Filename)
 	}
@@ -195,9 +199,10 @@ func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handler
 }
 
 type TorrentDownloadOptions struct {
-	Aria2cBin string
-	Target    string
-	OutputDir string
+	Aria2cBin  string
+	Target     string
+	OutputDir  string
+	SpeedLimit string
 }
 
 func BakeTorrentDownload(ctx context.Context, opts TorrentDownloadOptions, handlers BakeHandlers) (string, error) {
@@ -206,8 +211,11 @@ func BakeTorrentDownload(ctx context.Context, opts TorrentDownloadOptions, handl
 		"--seed-time=0",
 		"--summary-interval=1",
 		"--bt-stop-timeout=60",
-		opts.Target,
 	}
+	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
+	}
+	args = append(args, opts.Target)
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
 }
 
@@ -216,6 +224,7 @@ type BatchItem struct {
 	Mirrors  []string `json:"mirrors,omitempty"`
 	Filename string   `json:"filename,omitempty"`
 	Name     string   `json:"name,omitempty"`
+	Headers  []string `json:"headers,omitempty"`
 }
 
 type BatchDownloadOptions struct {
@@ -223,6 +232,7 @@ type BatchDownloadOptions struct {
 	Items       []BatchItem
 	OutputDir   string
 	Connections int
+	SpeedLimit  string
 }
 
 func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers BakeHandlers) (string, error) {
@@ -245,14 +255,16 @@ func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers 
 		if len(item.Mirrors) > 0 {
 			uris = strings.Join(item.Mirrors, "\t")
 		}
+		sb.WriteString(fmt.Sprintf("%s\n", uris))
 		out := item.Filename
 		if out == "" {
 			out = item.Name
 		}
 		if out != "" {
-			sb.WriteString(fmt.Sprintf("%s\n  out=%s\n", uris, out))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s\n", uris))
+			sb.WriteString(fmt.Sprintf("  out=%s\n", out))
+		}
+		for _, h := range item.Headers {
+			sb.WriteString(fmt.Sprintf("  header=%s\n", h))
 		}
 	}
 	if _, err := tmpFile.WriteString(sb.String()); err != nil {
@@ -274,6 +286,9 @@ func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers 
 		"--summary-interval=1",
 		"--auto-file-renaming=false",
 		"--allow-overwrite=true",
+	}
+	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
 
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)

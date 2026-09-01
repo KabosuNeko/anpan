@@ -149,16 +149,16 @@ func (b *ProgramBridge) Send(msg tea.Msg) {
 }
 
 type Model struct {
-	version        string
-	latestVersion  string
-	initialURL     string
-	initialOutDir  string
-	width          int
-	height         int
-	stage          StageName
-	statusText     string
-	errText        string
-	config         system.AnpanConfig
+	version       string
+	latestVersion string
+	initialURL    string
+	initialOutDir string
+	width         int
+	height        int
+	stage         StageName
+	statusText    string
+	errText       string
+	config        system.AnpanConfig
 
 	bridge *ProgramBridge
 
@@ -350,6 +350,7 @@ func (m Model) startBake() tea.Cmd {
 				Filename:    m.target.Filename,
 				OutputDir:   outDir,
 				Connections: m.config.Connections,
+				SpeedLimit:  m.config.SpeedLimit,
 			}, handlers)
 			return bakeDoneMsg{path: path, err: err}
 		}
@@ -360,9 +361,10 @@ func (m Model) startBake() tea.Cmd {
 				return bakeDoneMsg{err: fmt.Errorf("aria2c required for torrents: %w", err)}
 			}
 			path, err := engine.BakeTorrentDownload(m.ctx, engine.TorrentDownloadOptions{
-				Aria2cBin: aria2c,
-				Target:    m.target.Target,
-				OutputDir: outDir,
+				Aria2cBin:  aria2c,
+				Target:     m.target.Target,
+				OutputDir:  outDir,
+				SpeedLimit: m.config.SpeedLimit,
 			}, handlers)
 			return bakeDoneMsg{path: path, err: err}
 		}
@@ -382,6 +384,7 @@ func (m Model) startBake() tea.Cmd {
 					URL:      f.URL,
 					Mirrors:  f.Mirrors,
 					Filename: f.Name,
+					Headers:  f.Headers,
 				})
 			}
 			folder := outDir
@@ -393,6 +396,7 @@ func (m Model) startBake() tea.Cmd {
 				Items:       items,
 				OutputDir:   folder,
 				Connections: m.config.Connections,
+				SpeedLimit:  m.config.SpeedLimit,
 			}, handlers)
 			return bakeDoneMsg{path: path, err: err}
 		}
@@ -432,6 +436,7 @@ func (m Model) startBake() tea.Cmd {
 			SubLangs:       m.config.SubLangs,
 			SponsorBlock:   m.config.SponsorBlock,
 			WriteThumbnail: m.config.WriteThumbnail,
+			SpeedLimit:     m.config.SpeedLimit,
 		}, handlers)
 		return bakeDoneMsg{path: path, err: err}
 	}
@@ -950,11 +955,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.stage = StageError
 			m.errText = msg.err.Error()
+			if m.config.Notifications {
+				system.SendNotification("anpan", fmt.Sprintf("✗ Download failed: %s", msg.err.Error()))
+			}
 			return m, nil
 		}
 		m.stage = StageBaked
 		m.resultFilePath = msg.path
 		m.FinalPath = msg.path
+
+		// Fetch and save synced lyrics for audio tracks
+		if m.config.Lyrics != "off" && len(m.portions) > m.selectedPortion && m.portions[m.selectedPortion].Kind == engine.PortionKindAudio {
+			trackTitle := ""
+			artist := ""
+			duration := float64(0)
+			if m.probeResult != nil {
+				trackTitle = m.probeResult.Meta.Title
+				artist = m.probeResult.Meta.Uploader
+				if m.probeResult.Meta.Duration != nil {
+					duration = *m.probeResult.Meta.Duration
+				}
+			}
+			if trackTitle != "" {
+				go func(audioPath, title, art string, dur float64) {
+					if lyr, err := engine.FetchLyrics(context.Background(), title, art, dur); err == nil && lyr != nil {
+						_, _ = engine.SaveLrcFile(audioPath, lyr)
+					}
+				}(msg.path, trackTitle, artist, duration)
+			}
+		}
+
+		if m.config.Notifications {
+			itemTitle := filepath.Base(msg.path)
+			if m.probeResult != nil && m.probeResult.Meta.Title != "" {
+				itemTitle = m.probeResult.Meta.Title
+			} else if m.playlistMeta != nil && m.playlistMeta.Title != "" {
+				itemTitle = m.playlistMeta.Title
+			} else if m.archivePost != nil && m.archivePost.Title != "" {
+				itemTitle = m.archivePost.Title
+			} else if m.target != nil && m.target.Name != "" {
+				itemTitle = m.target.Name
+			}
+			system.SendNotification("anpan", fmt.Sprintf("✓ Finished: %s", itemTitle))
+		}
 		return m, nil
 
 	case spinner.TickMsg:

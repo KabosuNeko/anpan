@@ -30,6 +30,7 @@ type BakeVideoOptions struct {
 	SubLangs       string
 	SponsorBlock   string // "off" | "remove" | "mark"
 	WriteThumbnail bool
+	SpeedLimit     string
 }
 
 func parseProgressFloat(v string) *float64 {
@@ -44,9 +45,9 @@ func parseProgressFloat(v string) *float64 {
 }
 
 var (
-	playlistItemRegex    = regexp.MustCompile(`^\[download\] Downloading item (\d+) of (\d+)`)
-	formatCountRegex     = regexp.MustCompile(`Downloading 1 format\(s\):\s*(.+)`)
-	mergerTargetRegex    = regexp.MustCompile(`^\[Merger\] Merging formats into "(.+)"$`)
+	playlistItemRegex       = regexp.MustCompile(`^\[download\] Downloading item (\d+) of (\d+)`)
+	formatCountRegex        = regexp.MustCompile(`Downloading 1 format\(s\):\s*(.+)`)
+	mergerTargetRegex       = regexp.MustCompile(`^\[Merger\] Merging formats into "(.+)"$`)
 	extractAudioTargetRegex = regexp.MustCompile(`^\[ExtractAudio\] Destination: (.+)$`)
 )
 
@@ -94,6 +95,13 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 		args = append(args, "--no-playlist")
 	}
 
+	for _, a := range portionArgs {
+		if a == "--embed-thumbnail" {
+			args = append(args, "--convert-thumbnails", "jpg")
+			break
+		}
+	}
+
 	args = append(args,
 		"--no-warnings",
 		"--newline",
@@ -137,6 +145,9 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	}
 	if opts.WriteThumbnail {
 		args = append(args, "--write-thumbnail")
+	}
+	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+		args = append(args, "--limit-rate", opts.SpeedLimit)
 	}
 
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {

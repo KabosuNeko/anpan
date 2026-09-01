@@ -22,6 +22,15 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.AudioFormat != "mp3" {
 		t.Errorf("expected mp3 audioFormat by default, got %s", cfg.AudioFormat)
 	}
+	if !cfg.Notifications {
+		t.Errorf("expected Notifications true by default")
+	}
+	if cfg.SpeedLimit != "unlimited" {
+		t.Errorf("expected SpeedLimit unlimited by default, got %s", cfg.SpeedLimit)
+	}
+	if cfg.Lyrics != "synced" {
+		t.Errorf("expected Lyrics synced by default, got %s", cfg.Lyrics)
+	}
 }
 
 func TestSaveAndLoadConfig(t *testing.T) {
