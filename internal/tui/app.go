@@ -1086,7 +1086,8 @@ func (m Model) View() tea.View {
 	case StageTorrentPrompt:
 		header := styleRegular.Render(units.Truncate(m.target.Name, panelWidth))
 		sub := styleDim.Render("BitTorrent P2P transfer · aria2c")
-		info := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(fmt.Sprintf("%s\n%s", header, sub))
+		warning := styleDim.Render("⚠ P2P swarm exposes your public IP. Consider using a VPN.")
+		info := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(fmt.Sprintf("%s\n%s\n\n%s", header, sub, warning))
 
 		choices := []string{
 			"start BitTorrent download (P2P)",
