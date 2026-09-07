@@ -14,7 +14,7 @@
 ## Preview
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/30f832d8-96c5-45bd-8cf4-d91e2b69c8e9" alt="Anpan Preview" />
+  <img src="https://github.com/user-attachments/assets/1447e965-cbd5-4a31-ba98-f790e72827e5" alt="Anpan Preview" />
 </p>
 
 ## Supported Sources
