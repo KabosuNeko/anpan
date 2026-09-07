@@ -35,21 +35,5 @@ anpan uninstall --purge -y
 
 ## Desktop Integrations
 
-### Niri
-`~/.config/niri/config.kdl`:
-```kdl
-binds {
-    Mod+D { spawn "alacritty" "-e" "anpan"; }
-}
-```
-
-### Hyprland
-`~/.config/hypr/hyprland.conf`:
-```ini
-bind = $mainMod, D, exec, kitty --class anpan-float -e anpan
-windowrulev2 = float, class:^(anpan-float)$
-windowrulev2 = size 850 500, class:^(anpan-float)$
-```
-
 ### Rofi / App Launcher
 `anpan` installs `/usr/share/applications/anpan.desktop` (or `~/.local/share/applications/anpan.desktop`), accessible by all freedesktop app launchers.
