@@ -23,13 +23,13 @@
 
 ## Highlights
 
-- ** Multi-Source Torrent Search**: Search and browse across 7 major indexers (SubsPlease, Nyaa, YTS, EZTV, The Pirate Bay, 1337x, FitGirl Repacks) with full-viewport responsive layout, seeder filtering, sort modes, and multi-page pagination.
-- ** Instant Torrent Creation & Seeding**: Generate bencoded `.torrent` files and shareable Tier-1 tracker magnet links directly from any local file or directory, and seed via aria2c DHT.
-- ** Directory Watch Daemon**: Background watcher that automatically downloads incoming `.torrent`, `.magnet`, or link files dropped into a folder.
-- ** Parallel Download Acceleration**: Multi-connection segmented downloads (up to 32 connections) for cloud hosts, imageboards, and archives via `aria2c`.
-- ** Stream & Media Extraction**: Full yt-dlp integration with codec selection (AV1, VP9, AVC), audio conversion, synchronized `.lrc` lyrics, ID3 tags, and SponsorBlock.
-- ** Tabbed Ergonomic Settings**: 4-tab compact configuration modal (`General`, `Video`, `Audio`, `Torrent`) that never overflows your screen.
-- ** Zero CGo & Self-Contained**: Single static Go binary with built-in updater.
+- **Multi-Source Torrent Search**: Search and browse across 7 major indexers (SubsPlease, Nyaa, YTS, EZTV, The Pirate Bay, 1337x, FitGirl Repacks) with full-viewport responsive layout, seeder filtering, sort modes, and multi-page pagination.
+- **Instant Torrent Creation & Seeding**: Generate bencoded `.torrent` files and shareable Tier-1 tracker magnet links directly from any local file or directory, and seed via aria2c DHT.
+- **Directory Watch Daemon**: Background watcher that automatically downloads incoming `.torrent`, `.magnet`, or link files dropped into a folder.
+- **Parallel Download Acceleration**: Multi-connection segmented downloads (up to 32 connections) for cloud hosts, imageboards, and archives via `aria2c`.
+- **Stream & Media Extraction**: Full yt-dlp integration with codec selection (AV1, VP9, AVC), audio conversion, synchronized `.lrc` lyrics, ID3 tags, and SponsorBlock.
+- **Tabbed Ergonomic Settings**: 4-tab compact configuration modal (`General`, `Video`, `Audio`, `Torrent`) that never overflows your screen.
+- **Zero CGo & Self-Contained**: Single static Go binary with built-in updater.
 
 ---
 
