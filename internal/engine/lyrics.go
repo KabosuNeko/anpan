@@ -42,7 +42,7 @@ func FetchLyrics(ctx context.Context, title, artist string, duration float64) (*
 		reqURL := fmt.Sprintf("https://lrclib.net/api/get?%s", params.Encode())
 		req, _ := http.NewRequestWithContext(reqCtx, "GET", reqURL, nil)
 		if req != nil {
-			req.Header.Set("User-Agent", "anpan-downloader/0.5.0 (https://github.com/KabosuNeko/anpan)")
+			req.Header.Set("User-Agent", "anpan-downloader/1.0.0 (https://github.com/KabosuNeko/anpan)")
 			if resp, err := client.Do(req); err == nil {
 				defer resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
@@ -65,7 +65,7 @@ func FetchLyrics(ctx context.Context, title, artist string, duration float64) (*
 	if err != nil {
 		return nil, err
 	}
-	sReq.Header.Set("User-Agent", "anpan-downloader/0.5.0 (https://github.com/KabosuNeko/anpan)")
+	sReq.Header.Set("User-Agent", "anpan-downloader/1.0.0 (https://github.com/KabosuNeko/anpan)")
 
 	sResp, err := client.Do(sReq)
 	if err != nil {

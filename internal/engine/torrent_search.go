@@ -247,7 +247,7 @@ func searchSubsPlease(ctx context.Context, query string, cat string, page int) (
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/0.5.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.0")
 
 	resp, err := searchHTTPClient.Do(req)
 	if err != nil {
@@ -375,7 +375,7 @@ func searchNyaa(ctx context.Context, query string, cat string, page int) ([]Torr
 			lastErr = err
 			continue
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/0.5.0")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.0")
 
 		resp, err := searchHTTPClient.Do(req)
 		if err != nil {
@@ -874,7 +874,7 @@ func search1337x(ctx context.Context, query string, cat string, page int) ([]Tor
 			cancel()
 			continue
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/0.5.0")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.0")
 
 		resp, err := searchHTTPClient.Do(req)
 		if err != nil {
@@ -994,7 +994,7 @@ func parse1337xHTML(ctx context.Context, host string, htmlContent string, cat st
 			if err != nil {
 				return
 			}
-			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/0.5.0")
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.0")
 
 			resp, err := searchHTTPClient.Do(req)
 			if err != nil {

@@ -35,7 +35,7 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "anpan-downloader/0.5.0")
+	req.Header.Set("User-Agent", "anpan-downloader/1.0.0")
 
 	resp, err := client.Do(req)
 	if err != nil {
