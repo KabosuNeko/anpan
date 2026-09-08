@@ -16,7 +16,7 @@
 ## Preview
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1447e965-cbd5-4a31-ba98-f790e72827e5" alt="Anpan Preview" />
+  <img src="https://github.com/user-attachments/assets/88496b86-b742-48e1-b468-5f673c7a08d3" alt="Anpan Preview" />
 </p>
 
 ---
