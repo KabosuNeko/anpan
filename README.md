@@ -137,4 +137,4 @@ anpan uninstall --purge -y
 
 ## License
 
-[MIT](LICENSE) © [KabosuNeko](https://github.com/KabosuNeko)
+[MIT](LICENSE)
