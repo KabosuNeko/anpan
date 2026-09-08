@@ -29,6 +29,30 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
+func TestParseBytes(t *testing.T) {
+	cases := []struct {
+		input string
+		want  int64
+	}{
+		{"", 0},
+		{"0", 0},
+		{"500 B", 500},
+		{"1024", 1024},
+		{"1 KB", 1024},
+		{"1.5 KiB", 1536},
+		{"503.2 MiB", 527643443},
+		{"1.4 GiB", 1503238553},
+		{"2 TB", 2199023255552},
+	}
+
+	for _, tc := range cases {
+		got := ParseBytes(tc.input)
+		if got != tc.want {
+			t.Errorf("ParseBytes(%q) = %d, want %d", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	cases := []struct {
 		input float64

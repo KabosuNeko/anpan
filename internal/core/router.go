@@ -6,12 +6,15 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/KabosuNeko/anpan/internal/engine"
+	"github.com/KabosuNeko/anpan/internal/units"
 )
 
 type TargetType string
@@ -21,6 +24,8 @@ const (
 	TargetDirect  TargetType = "direct"
 	TargetArchive TargetType = "archive"
 	TargetVideo   TargetType = "video"
+	TargetSeed    TargetType = "seed"
+	TargetSearch  TargetType = "search"
 )
 
 type TargetInspection struct {
@@ -29,6 +34,9 @@ type TargetInspection struct {
 	// For torrent
 	Target string
 	Name   string
+
+	// For search
+	SearchQuery string
 
 	// For direct
 	URL      string
@@ -85,14 +93,130 @@ func extractFilenameFromURL(rawURL string) string {
 	return base
 }
 
+// CleanLocalPath cleans dragged paths, unescapes spaces, strips quotes, and expands ~.
+func CleanLocalPath(raw string) string {
+	s := strings.TrimSpace(raw)
+	if (strings.HasPrefix(s, "'") && strings.HasSuffix(s, "'")) ||
+		(strings.HasPrefix(s, "\"") && strings.HasSuffix(s, "\"")) ||
+		(strings.HasPrefix(s, "`") && strings.HasSuffix(s, "`")) {
+		if len(s) >= 2 {
+			s = s[1 : len(s)-1]
+		}
+	}
+	s = strings.TrimPrefix(s, "file://")
+	s = strings.ReplaceAll(s, `\ `, " ")
+	if strings.HasPrefix(s, "~") {
+		return units.ResolveUserPath(s)
+	}
+	return s
+}
+
 func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, error) {
 	trimmed := strings.TrimSpace(rawInput)
 
-	if strings.HasPrefix(trimmed, "magnet:?") {
+	// Bare InfoHash check (check raw trimmed input before path resolution)
+	if engine.IsInfoHash(trimmed) {
+		mag := engine.BuildMagnet(trimmed, "", nil)
+		name := trimmed
+		if len(name) > 10 {
+			name = name[:10]
+		}
 		return &TargetInspection{
 			Type:   TargetTorrent,
-			Target: trimmed,
+			Target: mag,
+			Name:   "Torrent (" + name + ")",
+		}, nil
+	}
+
+	cleaned := CleanLocalPath(trimmed)
+
+	// Explicit seed prefix
+	if strings.HasPrefix(strings.ToLower(trimmed), "seed ") || strings.HasPrefix(strings.ToLower(trimmed), "/seed ") {
+		seedPath := trimmed[5:]
+		if strings.HasPrefix(strings.ToLower(trimmed), "/seed ") {
+			seedPath = trimmed[6:]
+		}
+		cleanSeed := CleanLocalPath(seedPath)
+		fi, err := os.Stat(cleanSeed)
+		if err != nil {
+			return nil, fmt.Errorf("seed path not found: %w", err)
+		}
+		var sz *int64
+		if !fi.IsDir() {
+			s := fi.Size()
+			sz = &s
+		}
+		return &TargetInspection{
+			Type:     TargetSeed,
+			Target:   cleanSeed,
+			Name:     fi.Name(),
+			Filename: fi.Name(),
+			Size:     sz,
+		}, nil
+	}
+
+	// Search prefix: ?, /search, search, s
+	if strings.HasPrefix(trimmed, "?") || strings.HasPrefix(strings.ToLower(trimmed), "/search ") || strings.HasPrefix(strings.ToLower(trimmed), "search ") || strings.HasPrefix(strings.ToLower(trimmed), "s ") {
+		q := strings.TrimPrefix(trimmed, "?")
+		if strings.HasPrefix(strings.ToLower(q), "/search ") {
+			q = q[8:]
+		} else if strings.HasPrefix(strings.ToLower(q), "search ") {
+			q = q[7:]
+		} else if strings.HasPrefix(strings.ToLower(q), "s ") {
+			q = q[2:]
+		}
+		q = strings.TrimSpace(q)
+		if q != "" {
+			return &TargetInspection{
+				Type:        TargetSearch,
+				SearchQuery: q,
+				Name:        q,
+			}, nil
+		}
+	}
+
+	// Local file or directory on disk (Seed candidate if not .torrent)
+	if fi, err := os.Stat(cleaned); err == nil {
+		if !strings.HasSuffix(strings.ToLower(cleaned), ".torrent") {
+			var sz *int64
+			if !fi.IsDir() {
+				s := fi.Size()
+				sz = &s
+			}
+			return &TargetInspection{
+				Type:     TargetSeed,
+				Target:   cleaned,
+				Name:     fi.Name(),
+				Filename: fi.Name(),
+				Size:     sz,
+			}, nil
+		}
+		// Local .torrent file
+		absPath, _ := filepath.Abs(cleaned)
+		name := strings.TrimSuffix(fi.Name(), ".torrent")
+		return &TargetInspection{
+			Type:   TargetTorrent,
+			Target: absPath,
+			Name:   name,
+		}, nil
+	}
+
+	// Magnet URI check
+	if strings.HasPrefix(strings.ToLower(trimmed), "magnet:?") {
+		enriched := engine.EnrichMagnetWithTrackers(trimmed)
+		return &TargetInspection{
+			Type:   TargetTorrent,
+			Target: enriched,
 			Name:   ParseMagnetName(trimmed),
+		}, nil
+	}
+
+	// Multi-word input that is not a URL -> TargetSearch
+	if strings.Contains(trimmed, " ") && !strings.Contains(trimmed, "://") {
+		return &TargetInspection{
+			Type:        TargetSearch,
+			SearchQuery: trimmed,
+			Name:        trimmed,
 		}, nil
 	}
 

@@ -9,7 +9,9 @@
   <a href="https://go.dev"><img src="https://img.shields.io/badge/go-%3E%3D1.24-00ADD8.svg" alt="Go Version" /></a>
 </p>
 
-`anpan` is a terminal downloader written in Go. It handles video and audio stream extraction, multi-threaded direct file acceleration, and BitTorrent transfers through a single Bubble Tea interface.
+`anpan` is a cozy, high-performance terminal downloader, BitTorrent engine, and media extractor written in pure Go. It features a responsive Bubble Tea TUI, multi-source torrent search across 7 indexers, instant P2P torrent creation & seeding, automated directory watching, and parallel direct download acceleration.
+
+---
 
 ## Preview
 
@@ -17,21 +19,39 @@
   <img src="https://github.com/user-attachments/assets/1447e965-cbd5-4a31-ba98-f790e72827e5" alt="Anpan Preview" />
 </p>
 
+---
+
+## Highlights
+
+- **🍞 Signature Warm Bakery Aesthetic**: Handcrafted cozy palette (`bakery`) with a minimalist 16-color ANSI mode (`terminal`) for custom themes.
+- **🔍 Multi-Source Torrent Search**: Search and browse across 7 major indexers (SubsPlease, Nyaa, YTS, EZTV, The Pirate Bay, 1337x, FitGirl Repacks) with full-viewport responsive layout, seeder filtering, sort modes, and multi-page pagination.
+- **🌱 Instant Torrent Creation & Seeding**: Generate bencoded `.torrent` files and shareable Tier-1 tracker magnet links directly from any local file or directory, and seed via aria2c DHT.
+- **👁️ Directory Watch Daemon**: Background watcher that automatically downloads incoming `.torrent`, `.magnet`, or link files dropped into a folder.
+- **⚡ Parallel Download Acceleration**: Multi-connection segmented downloads (up to 32 connections) for cloud hosts, imageboards, and archives via `aria2c`.
+- **🎥 Stream & Media Extraction**: Full yt-dlp integration with codec selection (AV1, VP9, AVC), audio conversion, synchronized `.lrc` lyrics, ID3 tags, and SponsorBlock.
+- **📑 Tabbed Ergonomic Settings**: 4-tab compact configuration modal (`General`, `Video`, `Audio`, `Torrent`) that never overflows your screen.
+- **📦 Zero CGo & Self-Contained**: Single static Go binary with built-in updater.
+
+---
+
 ## Supported Sources
 
-| Category | Sources | Notes |
+| Category | Sources | Features |
 | :--- | :--- | :--- |
-| **Video & Audio** | YouTube, SoundCloud, TikTok, X (Twitter), Twitch, Bilibili, +1800 sites | Stream extraction via yt-dlp, AV1/VP9/AVC codecs, audio conversion, metadata & chapters |
-| **Art & Illustration** | Pixiv, Imgur Albums, Yande.re, Konachan, Safebooru, Gelbooru | Multi-page post & album extraction, original resolution images |
-| **Archive Posts & Libraries** | Kemono, Coomer, Pawchive, Internet Archive (archive.org) | Multi-attachment extraction with mirror fallback, digital library items |
-| **Cloud & Direct** | Google Drive, MediaFire, Pixeldrain (files & lists), Catbox, Litterbox, direct HTTP/HTTPS | 16-connection parallel chunk download via aria2c |
-| **P2P** | Magnet links, `.torrent` files | BitTorrent transfer via aria2c |
+| **BitTorrent Search** | SubsPlease, Nyaa, YTS, EZTV, The Pirate Bay, 1337x, FitGirl Repacks | Query search, category browse (Anime, Movies, TV, Games), sorting, inspector, pagination |
+| **BitTorrent P2P** | Magnet links, `.torrent` files, bare 40-hex / 32-base32 InfoHashes | DHT discovery, tracker enrichment, seeding, automated folder watcher |
+| **Video & Audio** | YouTube, SoundCloud, TikTok, X (Twitter), Twitch, Bilibili, +1800 sites | Stream extraction via yt-dlp, codec selection, chapters, subtitles, synced lyrics |
+| **Art & Illustration** | Pixiv, Imgur Albums, Yande.re, Konachan, Safebooru, Gelbooru | Multi-page gallery extraction, original resolution images, batch downloading |
+| **Archive Posts & Libraries** | Kemono, Coomer, Pawchive, Internet Archive (archive.org) | Multi-attachment extraction with mirror fallback, digital library items, ISOs |
+| **Cloud & Direct** | Google Drive, MediaFire, Pixeldrain (files & lists), Catbox, Litterbox, direct HTTP/HTTPS | 16-32 connection parallel chunk acceleration via aria2c |
 
-See [docs/SUPPORTED_SITES.md](docs/SUPPORTED_SITES.md) for URL schemes and backend routing details.
+See [docs/SUPPORTED_SITES.md](docs/SUPPORTED_SITES.md) for full routing architecture and URL patterns.
+
+---
 
 ## Installation
 
-### Script installer (Recommended)
+### Automated Script Installer (Recommended)
 
 **Linux / macOS:**
 ```sh
@@ -43,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | 
 irm https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.ps1 | iex
 ```
 
-### Arch Linux (AUR) (not recommended)
+### Arch Linux (AUR)
 
 ```sh
 yay -S anpan-git
@@ -51,7 +71,9 @@ yay -S anpan-git
 paru -S anpan-git
 ```
 
-### From source
+### Build from Source
+
+Requirements: Go 1.24+
 
 ```sh
 git clone https://github.com/KabosuNeko/anpan.git
@@ -60,32 +82,59 @@ go build -o anpan .
 sudo mv anpan /usr/local/bin/
 ```
 
-## Update
+---
+
+## Quick Start
 
 ```sh
+# Launch interactive TUI
+anpan
+
+# Download any media URL, magnet link, or InfoHash directly
+anpan "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+anpan "magnet:?xt=urn:btih:..."
+anpan "44917454083a216fe8b15d0259b665dfb119a6d8"
+
+# Search torrents across indexers
+anpan search "elden ring" --category games
+anpan search "frieren" --sort size-asc --limit 10
+
+# Create a .torrent and start seeding via DHT
+anpan seed ~/Music/Album/
+anpan seed ./large-archive.zip --no-seed
+
+# Run the automated directory download watcher
+anpan watch ~/Downloads/watch --out-dir ~/Downloads/Media
+
+# Batch download from file
+anpan -i links.txt
+```
+
+---
+
+## Updates & Removal
+
+```sh
+# Self-update to the latest release
 anpan update
 
-# Aur
-yay -S anpan-git
-```
-
-## Uninstall
-
-```sh
+# Uninstall cleanly
 anpan uninstall
-# or remove config and cache completely:
-anpan uninstall --purge -y
 
-# Aur
-yay -Rns anpan-git
+# Uninstall and purge all configs & cache
+anpan uninstall --purge -y
 ```
+
+---
 
 ## Documentation
 
-- [Supported Sites & Mechanisms](docs/SUPPORTED_SITES.md) — Routing logic and URL formats.
-- [Configuration & Keybindings](docs/CONFIGURATION.md) — Config keys and TUI keyboard shortcuts.
-- [CLI Reference](docs/CLI_REFERENCE.md) — CLI flags, timestamp trimming, and WM keybindings.
-- [Troubleshooting](docs/TROUBLESHOOTING.md) — Cookies, notifications, and dependencies.
+- 🧭 [Supported Sites & Mechanisms](docs/SUPPORTED_SITES.md) — Scrapers, indexers, and routing architecture.
+- ⚙️ [Configuration & Keybindings](docs/CONFIGURATION.md) — 4-tab settings, config schema, and complete TUI key reference.
+- 💻 [CLI Reference](docs/CLI_REFERENCE.md) — Subcommands (`search`, `seed`, `watch`), flags, and window manager integration.
+- 🔧 [Troubleshooting](docs/TROUBLESHOOTING.md) — External tools (`yt-dlp`, `aria2c`, `ffmpeg`), cookies, and BitTorrent networking.
+
+---
 
 ## License
 

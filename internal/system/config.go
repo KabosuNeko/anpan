@@ -21,31 +21,41 @@ type AnpanConfig struct {
 	SponsorBlock   string `json:"sponsorBlock"`   // "off" | "remove" | "mark"
 	EmbedMetadata  bool   `json:"embedMetadata"`
 	WriteThumbnail bool   `json:"writeThumbnail"`
-	Notifications  bool   `json:"notifications"`
-	SpeedLimit     string `json:"speedLimit"` // "unlimited" | "1M" | "5M" | "10M" | "20M" | "50M"
-	Lyrics         string `json:"lyrics"`     // "synced" | "off"
+	Notifications     bool   `json:"notifications"`
+	SpeedLimit        string `json:"speedLimit"` // "unlimited" | "1M" | "5M" | "10M" | "20M" | "50M"
+	Lyrics            string `json:"lyrics"`     // "synced" | "off"
+	TorrentSeedRatio  string `json:"torrentSeedRatio"`  // "off" | "1.0" | "2.0" | "unlimited"
+	ColorTheme        string `json:"colorTheme"`        // "bakery" | "terminal"
+	DefaultSearchSort string `json:"defaultSearchSort"` // "seeds" | "size" | "size-asc" | "peers" | "name" | "source"
+	DefaultSearchCat  string `json:"defaultSearchCat"`  // "all" | "anime" | "movies" | "tv" | "games"
+	AutoPaste         bool   `json:"autoPaste"`
 }
 
 func DefaultConfig() AnpanConfig {
 	home, _ := os.UserHomeDir()
 	return AnpanConfig{
-		Aria2c:         true,
-		Connections:    16,
-		AskSaveDir:     true,
-		OutDir:         filepath.Join(home, "Downloads"),
-		PreferQuality:  "ask",
-		VideoContainer: "mp4",
-		VideoCodec:     "auto",
-		AudioFormat:    "mp3",
-		CookiesBrowser: "none",
-		Subtitles:      "off",
-		SubLangs:       "vi,en",
-		SponsorBlock:   "off",
-		EmbedMetadata:  true,
-		WriteThumbnail: false,
-		Notifications:  true,
-		SpeedLimit:     "unlimited",
-		Lyrics:         "synced",
+		Aria2c:            true,
+		Connections:       16,
+		AskSaveDir:        true,
+		OutDir:            filepath.Join(home, "Downloads"),
+		PreferQuality:     "ask",
+		VideoContainer:    "mp4",
+		VideoCodec:        "auto",
+		AudioFormat:       "mp3",
+		CookiesBrowser:    "none",
+		Subtitles:         "off",
+		SubLangs:          "vi,en",
+		SponsorBlock:      "off",
+		EmbedMetadata:     true,
+		WriteThumbnail:    false,
+		Notifications:     true,
+		SpeedLimit:        "unlimited",
+		Lyrics:            "synced",
+		TorrentSeedRatio:  "off",
+		ColorTheme:        "bakery",
+		DefaultSearchSort: "seeds",
+		DefaultSearchCat:  "all",
+		AutoPaste:         false,
 	}
 }
 
@@ -91,6 +101,24 @@ func LoadConfig() AnpanConfig {
 		}
 		if loaded.SponsorBlock == "" {
 			loaded.SponsorBlock = cfg.SponsorBlock
+		}
+		if loaded.SpeedLimit == "" {
+			loaded.SpeedLimit = cfg.SpeedLimit
+		}
+		if loaded.Lyrics == "" {
+			loaded.Lyrics = cfg.Lyrics
+		}
+		if loaded.TorrentSeedRatio == "" {
+			loaded.TorrentSeedRatio = cfg.TorrentSeedRatio
+		}
+		if loaded.ColorTheme == "" {
+			loaded.ColorTheme = cfg.ColorTheme
+		}
+		if loaded.DefaultSearchSort == "" {
+			loaded.DefaultSearchSort = cfg.DefaultSearchSort
+		}
+		if loaded.DefaultSearchCat == "" {
+			loaded.DefaultSearchCat = cfg.DefaultSearchCat
 		}
 		return loaded
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -30,6 +31,40 @@ func FormatBytes(bytes float64) string {
 		formatted = fmt.Sprintf("%.1f", val)
 	}
 	return fmt.Sprintf("%s %s", formatted, tiers[tier])
+}
+
+// ParseBytes parses a human-readable size string (e.g., "503.2 MiB", "1.4 GiB", "200 KB", "1024 B") to bytes.
+func ParseBytes(s string) int64 {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0
+	}
+	var numStr strings.Builder
+	var unitStr strings.Builder
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || r == '.' {
+			numStr.WriteRune(r)
+		} else if r != ' ' && r != ',' {
+			unitStr.WriteRune(r)
+		}
+	}
+	val, err := strconv.ParseFloat(numStr.String(), 64)
+	if err != nil || val <= 0 {
+		return 0
+	}
+	unit := unitStr.String()
+	switch unit {
+	case "tb", "tib":
+		return int64(val * 1024 * 1024 * 1024 * 1024)
+	case "gb", "gib":
+		return int64(val * 1024 * 1024 * 1024)
+	case "mb", "mib":
+		return int64(val * 1024 * 1024)
+	case "kb", "kib":
+		return int64(val * 1024)
+	default: // "b", bytes
+		return int64(val)
+	}
 }
 
 func FormatDuration(totalSeconds float64) string {

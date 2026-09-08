@@ -48,3 +48,43 @@ func TestRenderMascotWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderFooterHintsSingleLine(t *testing.T) {
+	hints := stageHints[StageInput]
+	rendered := RenderFooterHints(hints)
+	w := lipgloss.Width(rendered)
+	if w > 70 {
+		t.Errorf("RenderFooterHints for StageInput width %d exceeds 70, which causes wrapping", w)
+	}
+
+	footer := lipgloss.NewStyle().Width(70).Align(lipgloss.Center).Render(rendered)
+	lines := strings.Split(footer, "\n")
+	if len(lines) != 1 {
+		t.Errorf("Expected footer to be a single line, got %d lines: %v", len(lines), lines)
+	}
+
+	// Test responsive tier 1 (< 70 width)
+	tier1Hints := [][2]string{
+		{"↵", "bake"},
+		{"^f", "search torrent"},
+		{"^e", "seed"},
+		{"^s", "settings"},
+		{"^c", "quit"},
+	}
+	rTier1 := RenderFooterHints(tier1Hints)
+	if lipgloss.Width(rTier1) > 58 {
+		t.Errorf("Tier 1 hints width %d exceeds 58", lipgloss.Width(rTier1))
+	}
+
+	// Test responsive tier 2 (< 58 width)
+	tier2Hints := [][2]string{
+		{"↵", "bake"},
+		{"^f", "search torrent"},
+		{"^c", "quit"},
+	}
+	rTier2 := RenderFooterHints(tier2Hints)
+	if lipgloss.Width(rTier2) > 36 {
+		t.Errorf("Tier 2 hints width %d exceeds 36", lipgloss.Width(rTier2))
+	}
+}
+

@@ -55,3 +55,32 @@ func TestInspectTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestInspectTargetTorlinkFeatures(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Bare infohash
+	ih := "4a3f5e08bcef825718eda30637230585e3330599"
+	resIH, err := InspectTarget(ctx, ih)
+	if err != nil || resIH.Type != TargetTorrent {
+		t.Fatalf("expected TargetTorrent for bare infohash: %+v, err: %v", resIH, err)
+	}
+
+	// 2. Search query with '?'
+	resSearch, err := InspectTarget(ctx, "?frieren beyond")
+	if err != nil || resSearch.Type != TargetSearch || resSearch.SearchQuery != "frieren beyond" {
+		t.Fatalf("expected TargetSearch for ? query: %+v, err: %v", resSearch, err)
+	}
+
+	// 3. Multi-word search query
+	resMulti, err := InspectTarget(ctx, "one piece 1100")
+	if err != nil || resMulti.Type != TargetSearch || resMulti.SearchQuery != "one piece 1100" {
+		t.Fatalf("expected TargetSearch for multi-word query: %+v, err: %v", resMulti, err)
+	}
+
+	// 4. Dragged file path with quotes and spaces
+	clean := CleanLocalPath("'/home/user/My Videos/sample.mp4'")
+	if clean != "/home/user/My Videos/sample.mp4" {
+		t.Errorf("CleanLocalPath failed: got %q", clean)
+	}
+}
