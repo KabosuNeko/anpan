@@ -104,6 +104,7 @@ var (
 	ariaCNRegex     = regexp.MustCompile(`\bCN:(\d+)`)
 	ariaSDRegex     = regexp.MustCompile(`\bSD:(\d+)`)
 	ariaDLRegex     = regexp.MustCompile(`\bDL:([0-9.]+[A-Za-z]*)`)
+	ariaULRegex     = regexp.MustCompile(`\bUL:([0-9.]+[A-Za-z]*)`)
 	ariaETARegex    = regexp.MustCompile(`\bETA:([0-9a-zA-Z]+)`)
 )
 
@@ -137,6 +138,12 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 	speed := float64(0)
 	if dlMatch := ariaDLRegex.FindStringSubmatch(line); dlMatch != nil {
 		speed = ParseUnitBytes(dlMatch[1])
+	}
+	if ulMatch := ariaULRegex.FindStringSubmatch(line); ulMatch != nil {
+		ulSpeed := ParseUnitBytes(ulMatch[1])
+		if ulSpeed > 0 && speed == 0 {
+			speed = ulSpeed
+		}
 	}
 
 	var eta *float64
@@ -203,19 +210,55 @@ type TorrentDownloadOptions struct {
 	Target     string
 	OutputDir  string
 	SpeedLimit string
+	SeedRatio  string
 }
 
 func BakeTorrentDownload(ctx context.Context, opts TorrentDownloadOptions, handlers BakeHandlers) (string, error) {
 	args := []string{
 		"-d", opts.OutputDir,
-		"--seed-time=0",
 		"--summary-interval=1",
 		"--bt-stop-timeout=60",
+	}
+	if opts.SeedRatio == "" || opts.SeedRatio == "off" || opts.SeedRatio == "0.0" {
+		args = append(args, "--seed-time=0")
+	} else if opts.SeedRatio == "unlimited" {
+		args = append(args, "--seed-ratio=0.0")
+	} else {
+		args = append(args, fmt.Sprintf("--seed-ratio=%s", opts.SeedRatio))
 	}
 	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
 	args = append(args, opts.Target)
+	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
+}
+
+// TorrentSeedOptions specifies options for seeding a local torrent/file with aria2c.
+type TorrentSeedOptions struct {
+	Aria2cBin   string
+	TorrentPath string
+	OutputDir   string
+	UploadLimit string
+}
+
+// BakeTorrentSeed runs aria2c to seed a local torrent to the public DHT swarm.
+func BakeTorrentSeed(ctx context.Context, opts TorrentSeedOptions, handlers BakeHandlers) (string, error) {
+	args := []string{
+		"-d", opts.OutputDir,
+		"--seed-ratio=0.0",
+		"--bt-seed-unverified=true",
+		"--summary-interval=1",
+		"--enable-dht=true",
+		"--enable-peer-exchange=true",
+		"--bt-enable-lpd=true",
+	}
+	if opts.UploadLimit != "" && opts.UploadLimit != "unlimited" {
+		args = append(args, fmt.Sprintf("--max-upload-limit=%s", opts.UploadLimit))
+	}
+	for _, tr := range DefaultPublicTrackers {
+		args = append(args, fmt.Sprintf("--bt-tracker=%s", tr))
+	}
+	args = append(args, opts.TorrentPath)
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
 }
 

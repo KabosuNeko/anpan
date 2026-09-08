@@ -13,3 +13,7 @@ func ReadClipboard() string {
 	}
 	return strings.TrimSpace(text)
 }
+
+func WriteClipboard(text string) error {
+	return clipboard.WriteAll(text)
+}

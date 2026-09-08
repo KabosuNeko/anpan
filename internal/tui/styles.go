@@ -43,6 +43,43 @@ var (
 			Bold(true)
 )
 
+func ApplyTheme(theme string) {
+	if strings.ToLower(strings.TrimSpace(theme)) == "terminal" {
+		colorBreadCrust = lipgloss.Color("3")  // ANSI 3 Yellow
+		colorBreadDough = lipgloss.Color("11") // ANSI 11 Bright Yellow
+		colorDim        = lipgloss.Color("8")  // ANSI 8 Gray
+		colorSubtle     = lipgloss.Color("8")
+		colorWhite      = lipgloss.Color("7")  // ANSI 7 Default Foreground
+		colorSuccess    = lipgloss.Color("2")  // ANSI 2 Green
+		colorError      = lipgloss.Color("1")  // ANSI 1 Red
+
+		styleTitle = lipgloss.NewStyle().Foreground(colorBreadCrust).Bold(true)
+		styleRegular = lipgloss.NewStyle()
+		styleDim = lipgloss.NewStyle().Faint(true)
+		styleSubtle = lipgloss.NewStyle().Faint(true)
+		styleSelected = lipgloss.NewStyle().Foreground(colorBreadDough).Bold(true)
+		styleSuccess = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+		styleError = lipgloss.NewStyle().Foreground(colorError).Bold(true)
+	} else {
+		// "bakery" - signature warm bakery palette
+		colorBreadCrust = lipgloss.Color("#cb904d")
+		colorBreadDough = lipgloss.Color("#f6d5a8")
+		colorDim        = lipgloss.Color("#70685e")
+		colorSubtle     = lipgloss.Color("#4a453e")
+		colorWhite      = lipgloss.Color("#dcd8d0")
+		colorSuccess    = lipgloss.Color("#73b06f")
+		colorError      = lipgloss.Color("#d95d5d")
+
+		styleTitle = lipgloss.NewStyle().Foreground(colorBreadCrust).Bold(true)
+		styleRegular = lipgloss.NewStyle().Foreground(colorWhite)
+		styleDim = lipgloss.NewStyle().Foreground(colorDim)
+		styleSubtle = lipgloss.NewStyle().Foreground(colorSubtle)
+		styleSelected = lipgloss.NewStyle().Foreground(colorBreadDough).Bold(true)
+		styleSuccess = lipgloss.NewStyle().Foreground(colorSuccess).Bold(true)
+		styleError = lipgloss.NewStyle().Foreground(colorError).Bold(true)
+	}
+}
+
 func RenderTrayInput(title string, totalWidth int, inputContent string, actionLabel string, actionDim bool) string {
 	btnW := len(actionLabel) + 4
 	if actionLabel == "" {
@@ -160,5 +197,5 @@ func RenderFooterHints(hints [][2]string) string {
 	for _, h := range hints {
 		parts = append(parts, styleRegular.Render(h[0])+" "+styleDim.Render(h[1]))
 	}
-	return strings.Join(parts, "   ")
+	return strings.Join(parts, "  ")
 }

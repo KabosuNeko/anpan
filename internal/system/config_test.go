@@ -30,6 +30,21 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Lyrics != "synced" {
 		t.Errorf("expected Lyrics synced by default, got %s", cfg.Lyrics)
 	}
+	if cfg.TorrentSeedRatio != "off" {
+		t.Errorf("expected TorrentSeedRatio off by default, got %s", cfg.TorrentSeedRatio)
+	}
+	if cfg.ColorTheme != "bakery" {
+		t.Errorf("expected ColorTheme bakery by default, got %s", cfg.ColorTheme)
+	}
+	if cfg.DefaultSearchSort != "seeds" {
+		t.Errorf("expected DefaultSearchSort seeds by default, got %s", cfg.DefaultSearchSort)
+	}
+	if cfg.DefaultSearchCat != "all" {
+		t.Errorf("expected DefaultSearchCat all by default, got %s", cfg.DefaultSearchCat)
+	}
+	if cfg.AutoPaste {
+		t.Errorf("expected AutoPaste false by default")
+	}
 }
 
 func TestSaveAndLoadConfig(t *testing.T) {
@@ -39,6 +54,9 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	cfg.Connections = 32
 	cfg.PreferQuality = "1080p"
 	cfg.AudioFormat = "flac"
+	cfg.ColorTheme = "terminal"
+	cfg.TorrentSeedRatio = "1.0"
+	cfg.AutoPaste = true
 
 	if err := SaveConfig(cfg); err != nil {
 		t.Fatalf("SaveConfig failed: %v", err)
@@ -53,5 +71,14 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if loaded.AudioFormat != "flac" {
 		t.Errorf("expected audioFormat flac, got %s", loaded.AudioFormat)
+	}
+	if loaded.ColorTheme != "terminal" {
+		t.Errorf("expected ColorTheme terminal, got %s", loaded.ColorTheme)
+	}
+	if loaded.TorrentSeedRatio != "1.0" {
+		t.Errorf("expected TorrentSeedRatio 1.0, got %s", loaded.TorrentSeedRatio)
+	}
+	if !loaded.AutoPaste {
+		t.Errorf("expected AutoPaste true, got false")
 	}
 }

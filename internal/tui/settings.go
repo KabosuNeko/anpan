@@ -18,6 +18,66 @@ type SettingItem struct {
 	Label string
 }
 
+type SettingCategory struct {
+	Key        string
+	Title      string
+	ShortTitle string
+	Items      []SettingItem
+}
+
+var SettingCategories = []SettingCategory{
+	{
+		Key:        "general",
+		Title:      "General",
+		ShortTitle: "General",
+		Items: []SettingItem{
+			{Key: "askSaveDir", Label: "ask save location"},
+			{Key: "outDir", Label: "default save dir"},
+			{Key: "colorTheme", Label: "color theme"},
+			{Key: "notifications", Label: "desktop notifications"},
+			{Key: "autoPaste", Label: "auto-paste clipboard"},
+			{Key: "speedLimit", Label: "speed limit"},
+		},
+	},
+	{
+		Key:        "video",
+		Title:      "Video (yt-dlp)",
+		ShortTitle: "Video",
+		Items: []SettingItem{
+			{Key: "videoContainer", Label: "video format (container)"},
+			{Key: "videoCodec", Label: "video codec preference"},
+			{Key: "preferQuality", Label: "auto-select quality"},
+			{Key: "subtitles", Label: "subtitles"},
+			{Key: "subLangs", Label: "subtitle languages"},
+			{Key: "sponsorBlock", Label: "sponsorblock"},
+			{Key: "cookiesBrowser", Label: "browser cookies"},
+		},
+	},
+	{
+		Key:        "audio",
+		Title:      "Audio & Music",
+		ShortTitle: "Audio",
+		Items: []SettingItem{
+			{Key: "audioFormat", Label: "audio format"},
+			{Key: "embedMetadata", Label: "embed audio tags & cover"},
+			{Key: "lyrics", Label: "download synced lyrics (.lrc)"},
+			{Key: "writeThumbnail", Label: "write thumbnail image"},
+		},
+	},
+	{
+		Key:        "torrent",
+		Title:      "Torrent & aria2c",
+		ShortTitle: "Torrent",
+		Items: []SettingItem{
+			{Key: "aria2c", Label: "aria2c accelerator"},
+			{Key: "connections", Label: "aria2c connections (-x -s)"},
+			{Key: "torrentSeedRatio", Label: "torrent seed ratio"},
+			{Key: "defaultSearchCat", Label: "default search category"},
+			{Key: "defaultSearchSort", Label: "default search sort"},
+		},
+	},
+}
+
 var SettingItems = []SettingItem{
 	{Key: "askSaveDir", Label: "ask save location"},
 	{Key: "outDir", Label: "default save dir"},
@@ -36,20 +96,29 @@ var SettingItems = []SettingItem{
 	{Key: "speedLimit", Label: "speed limit"},
 	{Key: "notifications", Label: "desktop notifications"},
 	{Key: "preferQuality", Label: "auto-select quality"},
+	{Key: "torrentSeedRatio", Label: "torrent seed ratio"},
+	{Key: "colorTheme", Label: "color theme"},
+	{Key: "defaultSearchSort", Label: "default search sort"},
+	{Key: "defaultSearchCat", Label: "default search category"},
+	{Key: "autoPaste", Label: "auto-paste clipboard"},
 }
 
 var (
-	connectionChoices = []int{4, 8, 16, 32}
-	qualityChoices    = []string{"ask", "best", "1080p", "audio"}
-	containerChoices  = []string{"mp4", "mkv", "webm"}
-	codecChoices      = []string{"auto", "av1", "vp9", "avc"}
-	audioChoices      = []string{"mp3", "m4a", "opus", "flac", "wav"}
-	lyricsChoices     = []string{"synced", "off"}
-	speedLimitChoices = []string{"unlimited", "1M", "5M", "10M", "20M", "50M"}
-	subtitleChoices   = []string{"off", "embed", "write"}
-	sublangChoices    = []string{"vi,en", "all", "en"}
-	sponsorChoices    = []string{"off", "remove", "mark"}
-	cookiesChoices    = []string{"none", "chrome", "firefox", "brave", "edge", "safari"}
+	connectionChoices        = []int{4, 8, 16, 32}
+	qualityChoices           = []string{"ask", "best", "1080p", "audio"}
+	containerChoices         = []string{"mp4", "mkv", "webm"}
+	codecChoices             = []string{"auto", "av1", "vp9", "avc"}
+	audioChoices             = []string{"mp3", "m4a", "opus", "flac", "wav"}
+	lyricsChoices            = []string{"synced", "off"}
+	speedLimitChoices        = []string{"unlimited", "1M", "5M", "10M", "20M", "50M"}
+	subtitleChoices          = []string{"off", "embed", "write"}
+	sublangChoices           = []string{"vi,en", "all", "en"}
+	sponsorChoices           = []string{"off", "remove", "mark"}
+	cookiesChoices           = []string{"none", "chrome", "firefox", "brave", "edge", "safari"}
+	torrentSeedRatioChoices  = []string{"off", "1.0", "2.0", "unlimited"}
+	colorThemeChoices        = []string{"bakery", "terminal"}
+	defaultSearchSortChoices = []string{"seeds", "size", "size-asc", "peers", "name", "source"}
+	defaultSearchCatChoices  = []string{"all", "anime", "movies", "tv", "games"}
 )
 
 func getDirPresets() []string {
@@ -121,6 +190,31 @@ func FormatSettingVal(key string, cfg system.AnpanConfig) string {
 		return cfg.PreferQuality
 	case "outDir":
 		return units.ShortenPath(cfg.OutDir, home, 22)
+	case "torrentSeedRatio":
+		if cfg.TorrentSeedRatio == "" {
+			return "off"
+		}
+		return cfg.TorrentSeedRatio
+	case "colorTheme":
+		if cfg.ColorTheme == "" {
+			return "bakery"
+		}
+		return cfg.ColorTheme
+	case "defaultSearchSort":
+		if cfg.DefaultSearchSort == "" {
+			return "seeds"
+		}
+		return cfg.DefaultSearchSort
+	case "defaultSearchCat":
+		if cfg.DefaultSearchCat == "" {
+			return "all"
+		}
+		return cfg.DefaultSearchCat
+	case "autoPaste":
+		if cfg.AutoPaste {
+			return "on"
+		}
+		return "off"
 	default:
 		return ""
 	}
@@ -263,14 +357,84 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 		}
 		next := (idx + dir + len(presets)) % len(presets)
 		cfg.OutDir = presets[next]
+	case "torrentSeedRatio":
+		idx := 0
+		for i, c := range torrentSeedRatioChoices {
+			if c == cfg.TorrentSeedRatio {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(torrentSeedRatioChoices)) % len(torrentSeedRatioChoices)
+		cfg.TorrentSeedRatio = torrentSeedRatioChoices[next]
+	case "colorTheme":
+		idx := 0
+		for i, c := range colorThemeChoices {
+			if c == cfg.ColorTheme {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(colorThemeChoices)) % len(colorThemeChoices)
+		cfg.ColorTheme = colorThemeChoices[next]
+		ApplyTheme(cfg.ColorTheme)
+	case "defaultSearchSort":
+		idx := 0
+		for i, c := range defaultSearchSortChoices {
+			if c == cfg.DefaultSearchSort {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(defaultSearchSortChoices)) % len(defaultSearchSortChoices)
+		cfg.DefaultSearchSort = defaultSearchSortChoices[next]
+	case "defaultSearchCat":
+		idx := 0
+		for i, c := range defaultSearchCatChoices {
+			if c == cfg.DefaultSearchCat {
+				idx = i
+				break
+			}
+		}
+		next := (idx + dir + len(defaultSearchCatChoices)) % len(defaultSearchCatChoices)
+		cfg.DefaultSearchCat = defaultSearchCatChoices[next]
+	case "autoPaste":
+		cfg.AutoPaste = !cfg.AutoPaste
 	}
 }
 
-func RenderSettingsView(width int, selectedIndex int, editingDir bool, dirInput textinput.Model, cfg system.AnpanConfig) string {
+func RenderSettingsView(width int, activeTab int, selectedIndex int, editingDir bool, dirInput textinput.Model, cfg system.AnpanConfig) string {
 	rowWidth := width - 4
-	var lines []string
+	if rowWidth < 30 {
+		rowWidth = 30
+	}
 
-	for i, item := range SettingItems {
+	if activeTab < 0 || activeTab >= len(SettingCategories) {
+		activeTab = 0
+	}
+	currentCat := SettingCategories[activeTab]
+
+	// 1. Tab Bar
+	var tabPills []string
+	for i, cat := range SettingCategories {
+		tabTitle := cat.ShortTitle
+		if rowWidth >= 62 {
+			tabTitle = cat.Title
+		}
+		if i == activeTab {
+			tabPills = append(tabPills, styleTitle.Render("["+tabTitle+"]"))
+		} else {
+			tabPills = append(tabPills, styleDim.Render(" "+tabTitle+" "))
+		}
+	}
+	tabLine := strings.Join(tabPills, " ")
+
+	var lines []string
+	lines = append(lines, tabLine)
+	lines = append(lines, styleSubtle.Render(strings.Repeat("─", rowWidth)))
+
+	// 2. Items of current tab
+	for i, item := range currentCat.Items {
 		isSelected := i == selectedIndex
 		prefix := "  "
 		if isSelected {
@@ -304,7 +468,7 @@ func RenderSettingsView(width int, selectedIndex int, editingDir bool, dirInput 
 
 		var leftStyled string
 		if isSelected {
-			leftStyled = styleDim.Render("> ") + styleRegular.Render(item.Label)
+			leftStyled = styleTitle.Render("> ") + styleRegular.Render(item.Label)
 		} else {
 			leftStyled = "  " + styleRegular.Render(item.Label)
 		}
