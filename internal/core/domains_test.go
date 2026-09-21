@@ -4,21 +4,22 @@ import (
 	"testing"
 )
 
-func TestIdentifySite(t *testing.T) {
+func TestIsKnownSite(t *testing.T) {
 	cases := []struct {
-		url     string
-		wantKey string
+		url  string
+		want bool
 	}{
-		{"https://music.youtube.com/watch?v=123", "youtube"},
-		{"https://soundcloud.com/artist/track", "soundcloud"},
-		{"https://tiktok.com/@user/video/123", "tiktok"},
-		{"https://bandcamp.com/album/xyz", "bandcamp"},
+		{"https://music.youtube.com/watch?v=123", true},
+		{"https://www.youtube.com/watch?v=123", true},
+		{"https://soundcloud.com/artist/track", true},
+		{"https://tiktok.com/@user/video/123", true},
+		{"https://bandcamp.com/album/xyz", true},
+		{"https://example.com/artist/track", false},
 	}
 
 	for _, tc := range cases {
-		got := IdentifySite(tc.url)
-		if got.Key != tc.wantKey {
-			t.Errorf("IdentifySite(%q).Key = %q, want %q", tc.url, got.Key, tc.wantKey)
+		if got := IsKnownSite(tc.url); got != tc.want {
+			t.Errorf("IsKnownSite(%q) = %v, want %v", tc.url, got, tc.want)
 		}
 	}
 }

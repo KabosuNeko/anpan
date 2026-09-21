@@ -1,12 +1,8 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/KabosuNeko/anpan/internal/engine"
@@ -53,23 +49,15 @@ Examples:
 			fmt.Println("  Drop .torrent, .magnet, or .txt links here to download automatically.")
 			fmt.Println("  (Press Ctrl+C to stop)")
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := signalContext("\n✦ Stopping watch daemon…")
 			defer cancel()
 
-			sigChan := make(chan os.Signal, 1)
-			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-			go func() {
-				<-sigChan
-				fmt.Println("\n✦ Stopping watch daemon…")
-				cancel()
-			}()
-
 			cfg := engine.WatcherConfig{
-				WatchDir:       resolvedWatchDir,
-				OutDir:         resolvedOutDir,
-				CheckInterval:  time.Duration(watchIntervalSec) * time.Second,
-				Aria2cLimit:    watchLimit,
-				Connections:    watchConnections,
+				WatchDir:      resolvedWatchDir,
+				OutDir:        resolvedOutDir,
+				CheckInterval: time.Duration(watchIntervalSec) * time.Second,
+				Aria2cLimit:   watchLimit,
+				Connections:   watchConnections,
 				OnDownloadDone: func(file string, target string) {
 					fmt.Printf("✓ Finished: %s\n", file)
 					system.SendNotification("anpan", fmt.Sprintf("Download complete: %s", filepath.Base(file)))

@@ -9,8 +9,7 @@ import (
 const maxHistoryEntries = 50
 
 func historyPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "anpan", "history.json")
+	return filepath.Join(configDir(), "history.json")
 }
 
 func LoadHistory() []string {
@@ -25,7 +24,7 @@ func LoadHistory() []string {
 	return []string{}
 }
 
-func AddToHistory(url string) []string {
+func AddToHistory(url string) {
 	history := LoadHistory()
 	var updated []string
 	updated = append(updated, url)
@@ -39,9 +38,8 @@ func AddToHistory(url string) []string {
 	}
 
 	p := historyPath()
-	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.MkdirAll(configDir(), 0o755)
 	if data, err := json.MarshalIndent(updated, "", "  "); err == nil {
 		_ = os.WriteFile(p, append(data, '\n'), 0o644)
 	}
-	return updated
 }

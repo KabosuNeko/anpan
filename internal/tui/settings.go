@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
 	"github.com/KabosuNeko/anpan/internal/system"
 	"github.com/KabosuNeko/anpan/internal/units"
-	"github.com/mattn/go-runewidth"
 )
 
 type SettingItem struct {
@@ -19,7 +19,6 @@ type SettingItem struct {
 }
 
 type SettingCategory struct {
-	Key        string
 	Title      string
 	ShortTitle string
 	Items      []SettingItem
@@ -27,7 +26,6 @@ type SettingCategory struct {
 
 var SettingCategories = []SettingCategory{
 	{
-		Key:        "general",
 		Title:      "General",
 		ShortTitle: "General",
 		Items: []SettingItem{
@@ -40,7 +38,6 @@ var SettingCategories = []SettingCategory{
 		},
 	},
 	{
-		Key:        "video",
 		Title:      "Video (yt-dlp)",
 		ShortTitle: "Video",
 		Items: []SettingItem{
@@ -54,7 +51,6 @@ var SettingCategories = []SettingCategory{
 		},
 	},
 	{
-		Key:        "audio",
 		Title:      "Audio & Music",
 		ShortTitle: "Audio",
 		Items: []SettingItem{
@@ -65,7 +61,6 @@ var SettingCategories = []SettingCategory{
 		},
 	},
 	{
-		Key:        "torrent",
 		Title:      "Torrent & aria2c",
 		ShortTitle: "Torrent",
 		Items: []SettingItem{
@@ -76,31 +71,6 @@ var SettingCategories = []SettingCategory{
 			{Key: "defaultSearchSort", Label: "default search sort"},
 		},
 	},
-}
-
-var SettingItems = []SettingItem{
-	{Key: "askSaveDir", Label: "ask save location"},
-	{Key: "outDir", Label: "default save dir"},
-	{Key: "videoContainer", Label: "video format (container)"},
-	{Key: "videoCodec", Label: "video codec preference"},
-	{Key: "audioFormat", Label: "audio format"},
-	{Key: "subtitles", Label: "subtitles"},
-	{Key: "subLangs", Label: "subtitle languages"},
-	{Key: "sponsorBlock", Label: "sponsorblock"},
-	{Key: "cookiesBrowser", Label: "browser cookies"},
-	{Key: "aria2c", Label: "aria2c accelerator"},
-	{Key: "connections", Label: "aria2c connections (-x -s)"},
-	{Key: "embedMetadata", Label: "embed audio tags & cover"},
-	{Key: "writeThumbnail", Label: "write thumbnail image"},
-	{Key: "lyrics", Label: "download synced lyrics (.lrc)"},
-	{Key: "speedLimit", Label: "speed limit"},
-	{Key: "notifications", Label: "desktop notifications"},
-	{Key: "preferQuality", Label: "auto-select quality"},
-	{Key: "torrentSeedRatio", Label: "torrent seed ratio"},
-	{Key: "colorTheme", Label: "color theme"},
-	{Key: "defaultSearchSort", Label: "default search sort"},
-	{Key: "defaultSearchCat", Label: "default search category"},
-	{Key: "autoPaste", Label: "auto-paste clipboard"},
 }
 
 var (
@@ -132,34 +102,29 @@ func getDirPresets() []string {
 	}
 }
 
+func onOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
+}
+
 func FormatSettingVal(key string, cfg system.AnpanConfig) string {
 	home, _ := os.UserHomeDir()
 	switch key {
 	case "aria2c":
-		if cfg.Aria2c {
-			return "on"
-		}
-		return "off"
+		return onOff(cfg.Aria2c)
 	case "askSaveDir":
 		if cfg.AskSaveDir {
 			return "always ask"
 		}
 		return "use default"
 	case "embedMetadata":
-		if cfg.EmbedMetadata {
-			return "on"
-		}
-		return "off"
+		return onOff(cfg.EmbedMetadata)
 	case "writeThumbnail":
-		if cfg.WriteThumbnail {
-			return "on"
-		}
-		return "off"
+		return onOff(cfg.WriteThumbnail)
 	case "notifications":
-		if cfg.Notifications {
-			return "on"
-		}
-		return "off"
+		return onOff(cfg.Notifications)
 	case "speedLimit":
 		if cfg.SpeedLimit == "" {
 			return "unlimited"
@@ -211,13 +176,20 @@ func FormatSettingVal(key string, cfg system.AnpanConfig) string {
 		}
 		return cfg.DefaultSearchCat
 	case "autoPaste":
-		if cfg.AutoPaste {
-			return "on"
-		}
-		return "off"
+		return onOff(cfg.AutoPaste)
 	default:
 		return ""
 	}
+}
+
+// cycleChoice returns the entry dir steps from cur in choices, wrapping at both ends.
+// When cur is not present it falls back to choices[def].
+func cycleChoice[T comparable](choices []T, cur T, def int, dir int) T {
+	idx := slices.Index(choices, cur)
+	if idx < 0 {
+		idx = def
+	}
+	return choices[(idx+dir+len(choices))%len(choices)]
 }
 
 func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
@@ -233,115 +205,27 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 	case "notifications":
 		cfg.Notifications = !cfg.Notifications
 	case "connections":
-		idx := 2
-		for i, c := range connectionChoices {
-			if c == cfg.Connections {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(connectionChoices)) % len(connectionChoices)
-		cfg.Connections = connectionChoices[next]
+		cfg.Connections = cycleChoice(connectionChoices, cfg.Connections, 2, dir)
 	case "preferQuality":
-		idx := 0
-		for i, q := range qualityChoices {
-			if q == cfg.PreferQuality {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(qualityChoices)) % len(qualityChoices)
-		cfg.PreferQuality = qualityChoices[next]
+		cfg.PreferQuality = cycleChoice(qualityChoices, cfg.PreferQuality, 0, dir)
 	case "videoContainer":
-		idx := 0
-		for i, c := range containerChoices {
-			if c == cfg.VideoContainer {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(containerChoices)) % len(containerChoices)
-		cfg.VideoContainer = containerChoices[next]
+		cfg.VideoContainer = cycleChoice(containerChoices, cfg.VideoContainer, 0, dir)
 	case "videoCodec":
-		idx := 0
-		for i, c := range codecChoices {
-			if c == cfg.VideoCodec {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(codecChoices)) % len(codecChoices)
-		cfg.VideoCodec = codecChoices[next]
+		cfg.VideoCodec = cycleChoice(codecChoices, cfg.VideoCodec, 0, dir)
 	case "audioFormat":
-		idx := 0
-		for i, a := range audioChoices {
-			if a == cfg.AudioFormat {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(audioChoices)) % len(audioChoices)
-		cfg.AudioFormat = audioChoices[next]
+		cfg.AudioFormat = cycleChoice(audioChoices, cfg.AudioFormat, 0, dir)
 	case "subtitles":
-		idx := 0
-		for i, s := range subtitleChoices {
-			if s == cfg.Subtitles {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(subtitleChoices)) % len(subtitleChoices)
-		cfg.Subtitles = subtitleChoices[next]
+		cfg.Subtitles = cycleChoice(subtitleChoices, cfg.Subtitles, 0, dir)
 	case "subLangs":
-		idx := 0
-		for i, l := range sublangChoices {
-			if l == cfg.SubLangs {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(sublangChoices)) % len(sublangChoices)
-		cfg.SubLangs = sublangChoices[next]
+		cfg.SubLangs = cycleChoice(sublangChoices, cfg.SubLangs, 0, dir)
 	case "sponsorBlock":
-		idx := 0
-		for i, s := range sponsorChoices {
-			if s == cfg.SponsorBlock {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(sponsorChoices)) % len(sponsorChoices)
-		cfg.SponsorBlock = sponsorChoices[next]
+		cfg.SponsorBlock = cycleChoice(sponsorChoices, cfg.SponsorBlock, 0, dir)
 	case "cookiesBrowser":
-		idx := 0
-		for i, b := range cookiesChoices {
-			if b == cfg.CookiesBrowser {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(cookiesChoices)) % len(cookiesChoices)
-		cfg.CookiesBrowser = cookiesChoices[next]
+		cfg.CookiesBrowser = cycleChoice(cookiesChoices, cfg.CookiesBrowser, 0, dir)
 	case "speedLimit":
-		idx := 0
-		for i, s := range speedLimitChoices {
-			if s == cfg.SpeedLimit {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(speedLimitChoices)) % len(speedLimitChoices)
-		cfg.SpeedLimit = speedLimitChoices[next]
+		cfg.SpeedLimit = cycleChoice(speedLimitChoices, cfg.SpeedLimit, 0, dir)
 	case "lyrics":
-		idx := 0
-		for i, l := range lyricsChoices {
-			if l == cfg.Lyrics {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(lyricsChoices)) % len(lyricsChoices)
-		cfg.Lyrics = lyricsChoices[next]
+		cfg.Lyrics = cycleChoice(lyricsChoices, cfg.Lyrics, 0, dir)
 	case "outDir":
 		presets := getDirPresets()
 		curNorm := filepath.Clean(cfg.OutDir)
@@ -355,66 +239,29 @@ func CycleConfig(cfg *system.AnpanConfig, key string, dir int) {
 		if idx == -1 {
 			idx = 0
 		}
-		next := (idx + dir + len(presets)) % len(presets)
-		cfg.OutDir = presets[next]
+		cfg.OutDir = presets[(idx+dir+len(presets))%len(presets)]
 	case "torrentSeedRatio":
-		idx := 0
-		for i, c := range torrentSeedRatioChoices {
-			if c == cfg.TorrentSeedRatio {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(torrentSeedRatioChoices)) % len(torrentSeedRatioChoices)
-		cfg.TorrentSeedRatio = torrentSeedRatioChoices[next]
+		cfg.TorrentSeedRatio = cycleChoice(torrentSeedRatioChoices, cfg.TorrentSeedRatio, 0, dir)
 	case "colorTheme":
-		idx := 0
-		for i, c := range colorThemeChoices {
-			if c == cfg.ColorTheme {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(colorThemeChoices)) % len(colorThemeChoices)
-		cfg.ColorTheme = colorThemeChoices[next]
+		cfg.ColorTheme = cycleChoice(colorThemeChoices, cfg.ColorTheme, 0, dir)
 		ApplyTheme(cfg.ColorTheme)
 	case "defaultSearchSort":
-		idx := 0
-		for i, c := range defaultSearchSortChoices {
-			if c == cfg.DefaultSearchSort {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(defaultSearchSortChoices)) % len(defaultSearchSortChoices)
-		cfg.DefaultSearchSort = defaultSearchSortChoices[next]
+		cfg.DefaultSearchSort = cycleChoice(defaultSearchSortChoices, cfg.DefaultSearchSort, 0, dir)
 	case "defaultSearchCat":
-		idx := 0
-		for i, c := range defaultSearchCatChoices {
-			if c == cfg.DefaultSearchCat {
-				idx = i
-				break
-			}
-		}
-		next := (idx + dir + len(defaultSearchCatChoices)) % len(defaultSearchCatChoices)
-		cfg.DefaultSearchCat = defaultSearchCatChoices[next]
+		cfg.DefaultSearchCat = cycleChoice(defaultSearchCatChoices, cfg.DefaultSearchCat, 0, dir)
 	case "autoPaste":
 		cfg.AutoPaste = !cfg.AutoPaste
 	}
 }
 
 func RenderSettingsView(width int, activeTab int, selectedIndex int, editingDir bool, dirInput textinput.Model, cfg system.AnpanConfig) string {
-	rowWidth := width - 4
-	if rowWidth < 30 {
-		rowWidth = 30
-	}
+	rowWidth := max(width-4, 30)
 
 	if activeTab < 0 || activeTab >= len(SettingCategories) {
 		activeTab = 0
 	}
 	currentCat := SettingCategories[activeTab]
 
-	// 1. Tab Bar
 	var tabPills []string
 	for i, cat := range SettingCategories {
 		tabTitle := cat.ShortTitle
@@ -433,26 +280,19 @@ func RenderSettingsView(width int, activeTab int, selectedIndex int, editingDir 
 	lines = append(lines, tabLine)
 	lines = append(lines, styleSubtle.Render(strings.Repeat("─", rowWidth)))
 
-	// 2. Items of current tab
 	for i, item := range currentCat.Items {
 		isSelected := i == selectedIndex
-		prefix := "  "
-		if isSelected {
-			prefix = "> "
-		}
+		leftW := 2 + lipgloss.Width(item.Label)
 
-		leftText := prefix + item.Label
-		leftW := runewidth.StringWidth(leftText)
-
-		var valDisplay string
 		var rightStyled string
+		var rightW int
 
 		if isSelected && editingDir {
-			valDisplay = "[ " + dirInput.View() + " ]"
+			rightW = lipgloss.Width("[ " + dirInput.View() + " ]")
 			rightStyled = styleDim.Render("[ ") + dirInput.View() + styleDim.Render(" ]")
 		} else {
-			rawVal := FormatSettingVal(item.Key, cfg)
-			valDisplay = "[ " + rawVal + " ]"
+			valDisplay := "[ " + FormatSettingVal(item.Key, cfg) + " ]"
+			rightW = lipgloss.Width(valDisplay)
 			if isSelected {
 				rightStyled = styleRegular.Render(valDisplay)
 			} else {
@@ -460,11 +300,7 @@ func RenderSettingsView(width int, activeTab int, selectedIndex int, editingDir 
 			}
 		}
 
-		rightW := lipgloss.Width(valDisplay)
-		gap := rowWidth - leftW - rightW
-		if gap < 1 {
-			gap = 1
-		}
+		gap := max(rowWidth-leftW-rightW, 1)
 
 		var leftStyled string
 		if isSelected {

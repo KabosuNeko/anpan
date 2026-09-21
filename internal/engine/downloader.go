@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -67,13 +68,9 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	portionArgs := opts.Portion.YtdlpArgs
 	isOpusOrOgg := strings.Contains(strings.ToLower(opts.Portion.Label), "opus") || strings.Contains(strings.ToLower(opts.Portion.Label), "ogg")
 	if isOpusOrOgg && !HasMutagen(opts.YtdlpBin) {
-		var filtered []string
-		for _, a := range portionArgs {
-			if a != "--embed-thumbnail" {
-				filtered = append(filtered, a)
-			}
-		}
-		portionArgs = filtered
+		portionArgs = slices.DeleteFunc(slices.Clone(portionArgs), func(a string) bool {
+			return a == "--embed-thumbnail"
+		})
 	}
 
 	var args []string
@@ -95,11 +92,8 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 		args = append(args, "--no-playlist")
 	}
 
-	for _, a := range portionArgs {
-		if a == "--embed-thumbnail" {
-			args = append(args, "--convert-thumbnails", "jpg")
-			break
-		}
+	if slices.Contains(portionArgs, "--embed-thumbnail") {
+		args = append(args, "--convert-thumbnails", "jpg")
 	}
 
 	args = append(args,
@@ -130,17 +124,13 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	} else if opts.SponsorBlock == "mark" {
 		args = append(args, "--sponsorblock-mark", "all")
 	}
+	subLangs := "vi,en"
+	if opts.SubLangs != "" {
+		subLangs = opts.SubLangs
+	}
 	if opts.Subtitles == "embed" {
-		subLangs := "vi,en"
-		if opts.SubLangs != "" {
-			subLangs = opts.SubLangs
-		}
 		args = append(args, "--embed-subs", "--sub-langs", subLangs)
 	} else if opts.Subtitles == "write" {
-		subLangs := "vi,en"
-		if opts.SubLangs != "" {
-			subLangs = opts.SubLangs
-		}
 		args = append(args, "--write-subs", "--sub-langs", subLangs)
 	}
 	if opts.WriteThumbnail {

@@ -13,12 +13,10 @@ import (
 )
 
 type LyricsResult struct {
-	ID           int64   `json:"id"`
-	TrackName    string  `json:"trackName"`
-	ArtistName   string  `json:"artistName"`
-	Duration     float64 `json:"duration"`
-	PlainLyrics  string  `json:"plainLyrics"`
-	SyncedLyrics string  `json:"syncedLyrics"`
+	TrackName    string `json:"trackName"`
+	ArtistName   string `json:"artistName"`
+	PlainLyrics  string `json:"plainLyrics"`
+	SyncedLyrics string `json:"syncedLyrics"`
 }
 
 // FetchLyrics searches LRCLIB for synced or plain lyrics.
@@ -31,7 +29,6 @@ func FetchLyrics(ctx context.Context, title, artist string, duration float64) (*
 
 	client := &http.Client{Timeout: 4 * time.Second}
 
-	// 1. Try exact match if both artist and title are available
 	if cleanArtist != "" && cleanTitle != "" {
 		params := url.Values{}
 		params.Set("track_name", cleanTitle)
@@ -55,7 +52,6 @@ func FetchLyrics(ctx context.Context, title, artist string, duration float64) (*
 		}
 	}
 
-	// 2. Fallback to search endpoint
 	q := cleanTitle
 	if cleanArtist != "" && !strings.Contains(strings.ToLower(cleanTitle), strings.ToLower(cleanArtist)) {
 		q = cleanArtist + " " + cleanTitle

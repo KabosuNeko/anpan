@@ -73,18 +73,12 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestFormatSpeedAndEta(t *testing.T) {
+func TestFormatSpeed(t *testing.T) {
 	if got := FormatSpeed(1048576); got != "1 MB/s" {
 		t.Errorf("FormatSpeed(1048576) = %q, want 1 MB/s", got)
 	}
 	if got := FormatSpeed(0); got != "" {
 		t.Errorf("FormatSpeed(0) = %q, want empty", got)
-	}
-	if got := FormatEta(90); got != "1:30" {
-		t.Errorf("FormatEta(90) = %q, want 1:30", got)
-	}
-	if got := FormatEta(0); got != "" {
-		t.Errorf("FormatEta(0) = %q, want empty", got)
 	}
 }
 

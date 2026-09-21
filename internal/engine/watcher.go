@@ -41,7 +41,6 @@ func StartWatcher(ctx context.Context, cfg WatcherConfig) error {
 	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 
-	// Initial scan
 	_ = scanWatchDir(ctx, cfg, processedDir)
 
 	for {
@@ -82,7 +81,6 @@ func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir string) e
 			continue
 		}
 
-		// Download candidate
 		dest := cfg.OutDir
 		if dest == "" {
 			dest = cfg.WatchDir
@@ -96,7 +94,6 @@ func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir string) e
 			continue
 		}
 
-		// Download with aria2c
 		var bakeErr error
 		if strings.HasPrefix(strings.ToLower(targetURI), "magnet:") || strings.HasSuffix(strings.ToLower(targetURI), ".torrent") {
 			_, bakeErr = BakeTorrentDownload(ctx, TorrentDownloadOptions{
@@ -125,7 +122,6 @@ func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir string) e
 			continue
 		}
 
-		// Move to .processed
 		destProcessed := filepath.Join(processedDir, fmt.Sprintf("%d_%s", time.Now().Unix(), name))
 		_ = os.Rename(filePath, destProcessed)
 

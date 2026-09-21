@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -58,6 +59,20 @@ var directExtensions = map[string]bool{
 	"bin": true, "pkg": true, "deb": true, "rpm": true, "appimage": true,
 	"exe": true, "dmg": true, "pdf": true, "epub": true, "apk": true,
 	"jar": true,
+}
+
+var archiveProbes = []struct {
+	match   func(string) bool
+	probe   func(context.Context, string) (*engine.ArchivePost, error)
+	loadErr string
+	empty   string
+}{
+	{engine.IsArchivePostURL, engine.ProbeArchivePost, "archive post could not be loaded", "no downloadable files or attachments found in this post"},
+	{engine.IsPixivURL, engine.ProbePixivPost, "pixiv artwork could not be loaded", "no images found for this pixiv artwork"},
+	{engine.IsBooruURL, engine.ProbeBooruPost, "booru post could not be loaded", "no image found for this booru post"},
+	{engine.IsPixeldrainListURL, engine.ProbePixeldrainList, "pixeldrain list could not be loaded", "no files found in this pixeldrain list"},
+	{engine.IsImgurURL, engine.ProbeImgurAlbum, "imgur album could not be loaded", "no images found in this imgur album"},
+	{engine.IsArchiveOrgURL, engine.ProbeArchiveOrg, "archive.org item could not be loaded", "no files found in this archive.org item"},
 }
 
 func ParseMagnetName(magnetURI string) string {
@@ -233,10 +248,13 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 	parsedInput := ParseURLInput(trimmed)
 	cleanURL := parsedInput.CleanURL
 
-	if engine.IsArchivePostURL(cleanURL) {
-		archive, err := engine.ProbeArchivePost(ctx, cleanURL)
+	for _, ap := range archiveProbes {
+		if !ap.match(cleanURL) {
+			continue
+		}
+		archive, err := ap.probe(ctx, cleanURL)
 		if err != nil {
-			return nil, fmt.Errorf("archive post could not be loaded: %w", err)
+			return nil, fmt.Errorf("%s: %w", ap.loadErr, err)
 		}
 		if archive != nil && len(archive.Files) > 0 {
 			return &TargetInspection{
@@ -244,77 +262,7 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 				ArchivePost: archive,
 			}, nil
 		}
-		return nil, fmt.Errorf("no downloadable files or attachments found in this post")
-	}
-
-	if engine.IsPixivURL(cleanURL) {
-		archive, err := engine.ProbePixivPost(ctx, cleanURL)
-		if err != nil {
-			return nil, fmt.Errorf("pixiv artwork could not be loaded: %w", err)
-		}
-		if archive != nil && len(archive.Files) > 0 {
-			return &TargetInspection{
-				Type:        TargetArchive,
-				ArchivePost: archive,
-			}, nil
-		}
-		return nil, fmt.Errorf("no images found for this pixiv artwork")
-	}
-
-	if engine.IsBooruURL(cleanURL) {
-		archive, err := engine.ProbeBooruPost(ctx, cleanURL)
-		if err != nil {
-			return nil, fmt.Errorf("booru post could not be loaded: %w", err)
-		}
-		if archive != nil && len(archive.Files) > 0 {
-			return &TargetInspection{
-				Type:        TargetArchive,
-				ArchivePost: archive,
-			}, nil
-		}
-		return nil, fmt.Errorf("no image found for this booru post")
-	}
-
-	if engine.IsPixeldrainListURL(cleanURL) {
-		archive, err := engine.ProbePixeldrainList(ctx, cleanURL)
-		if err != nil {
-			return nil, fmt.Errorf("pixeldrain list could not be loaded: %w", err)
-		}
-		if archive != nil && len(archive.Files) > 0 {
-			return &TargetInspection{
-				Type:        TargetArchive,
-				ArchivePost: archive,
-			}, nil
-		}
-		return nil, fmt.Errorf("no files found in this pixeldrain list")
-	}
-
-	if engine.IsImgurURL(cleanURL) {
-		archive, err := engine.ProbeImgurAlbum(ctx, cleanURL)
-		if err != nil {
-			return nil, fmt.Errorf("imgur album could not be loaded: %w", err)
-		}
-		if archive != nil && len(archive.Files) > 0 {
-			return &TargetInspection{
-				Type:        TargetArchive,
-				ArchivePost: archive,
-			}, nil
-		}
-		return nil, fmt.Errorf("no images found in this imgur album")
-	}
-
-	if engine.IsArchiveOrgURL(cleanURL) {
-		archive, err := engine.ProbeArchiveOrg(ctx, cleanURL)
-		if err != nil {
-			return nil, fmt.Errorf("archive.org item could not be loaded: %w", err)
-		}
-		if archive != nil && len(archive.Files) > 0 {
-			return &TargetInspection{
-				Type:        TargetArchive,
-				ArchivePost: archive,
-			}, nil
-		}
-		return nil, fmt.Errorf("no files found in this archive.org item")
+		return nil, errors.New(ap.empty)
 	}
 
 	if engine.IsCloudHostURL(cleanURL) {
@@ -329,21 +277,13 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 		}
 	}
 
-	site := IdentifySite(cleanURL)
-	if parsedInput.TimeRange != "" || site.Key != "generic" {
+	u, err := url.Parse(cleanURL)
+	if err != nil || parsedInput.TimeRange != "" || u.Hostname() == "" || IsKnownSite(cleanURL) {
 		return &TargetInspection{
 			Type:      TargetVideo,
 			CleanURL:  cleanURL,
 			TimeRange: parsedInput.TimeRange,
 			TimeLabel: parsedInput.TimeLabel,
-		}, nil
-	}
-
-	u, err := url.Parse(cleanURL)
-	if err != nil {
-		return &TargetInspection{
-			Type:     TargetVideo,
-			CleanURL: cleanURL,
 		}, nil
 	}
 

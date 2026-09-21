@@ -90,14 +90,9 @@ type BrowseViewState struct {
 }
 
 func renderRoundedBox(title string, width int, contentLines []string, focused bool) string {
-	if width < 20 {
-		width = 20
-	}
+	width = max(width, 20)
 	innerW := width - 2
-	contentMaxW := width - 4
-	if contentMaxW < 1 {
-		contentMaxW = 1
-	}
+	contentMaxW := max(width-4, 1)
 
 	borderStyle := styleDim
 	titleStyle := styleRegular
@@ -106,32 +101,13 @@ func renderRoundedBox(title string, width int, contentLines []string, focused bo
 		titleStyle = styleSelected
 	}
 
-	titleDisplay := ""
-	if title != "" {
-		titleDisplay = titleStyle.Render(title)
-	}
-
-	titleW := lipgloss.Width(title)
-	tail := innerW - titleW - 3
-	if tail < 0 {
-		tail = 0
-	}
-
-	var topBorder string
-	if title != "" {
-		topBorder = borderStyle.Render("╭─ ") + titleDisplay + borderStyle.Render(" "+strings.Repeat("─", tail)+"╮")
-	} else {
-		topBorder = borderStyle.Render("╭" + strings.Repeat("─", innerW) + "╮")
-	}
+	tail := max(innerW-lipgloss.Width(title)-3, 0)
+	topBorder := borderStyle.Render("╭─ ") + titleStyle.Render(title) + borderStyle.Render(" "+strings.Repeat("─", tail)+"╮")
 
 	var renderedLines []string
 	for _, line := range contentLines {
 		clipped := lipgloss.NewStyle().MaxWidth(contentMaxW).Render(line)
-		lineW := lipgloss.Width(clipped)
-		pad := contentMaxW - lineW
-		if pad < 0 {
-			pad = 0
-		}
+		pad := max(contentMaxW-lipgloss.Width(clipped), 0)
 		renderedLines = append(renderedLines, borderStyle.Render("│ ")+clipped+strings.Repeat(" ", pad)+borderStyle.Render(" │"))
 	}
 
@@ -147,27 +123,20 @@ func RenderBrowseView(state BrowseViewState) string {
 	if totalWidth <= 0 {
 		totalWidth = 80
 	}
-	if totalWidth < 48 {
-		totalWidth = 48
-	}
+	totalWidth = max(totalWidth, 48)
 
 	isTwoCol := totalWidth >= 64
 	sidebarWidth := 16
 
-	targetContentLines := state.Height - 10
-	if targetContentLines < 8 {
-		targetContentLines = 8
-	}
+	targetContentLines := max(state.Height-10, 8)
 
-	// Top Title Bar: clean, focused, no bloated ASCII
 	titleBar := styleTitle.Render("🍞 anpan") + styleDim.Render(" · torrent search & browse")
 	if state.StatusMsg != "" {
 		titleBar += "  " + styleSuccess.Render("✓ "+state.StatusMsg)
 	}
 
-	// 1. Sidebar rendering
 	var sidebarLines []string
-	sidebarLines = append(sidebarLines, "") // small top padding
+	sidebarLines = append(sidebarLines, "")
 	for _, cat := range BrowseCategories {
 		active := cat.Key == state.ActiveCategory
 		if active {
@@ -182,16 +151,12 @@ func RenderBrowseView(state BrowseViewState) string {
 	}
 	sidebarContent := strings.Join(sidebarLines, "\n")
 
-	// 2. Right pane width
 	rightWidth := totalWidth
 	if isTwoCol {
 		rightWidth = totalWidth - sidebarWidth - 2
 	}
-	if rightWidth < 38 {
-		rightWidth = 38
-	}
+	rightWidth = max(rightWidth, 38)
 
-	// 3. Search Box
 	searchBoxFocused := state.FocusedRegion == "search"
 	searchPrompt := styleDim.Render("❯ ")
 	if searchBoxFocused {
@@ -213,12 +178,10 @@ func RenderBrowseView(state BrowseViewState) string {
 	}
 	searchBox := renderRoundedBox("Search", rightWidth, []string{searchPrompt + searchText}, searchBoxFocused)
 
-	// 4. Content Panel (Results / Seeding / Details)
 	contentBoxFocused := state.FocusedRegion == "content" || state.FocusedRegion == "detail"
 	var contentLines []string
 
 	if state.ActiveCategory == "seeding" {
-		// Seeding View
 		if state.SeedingActive {
 			contentLines = append(contentLines, styleTitle.Render("Active Seeding Session"))
 			contentLines = append(contentLines, "")
@@ -242,11 +205,8 @@ func RenderBrowseView(state BrowseViewState) string {
 			contentLines = append(contentLines, "")
 			contentLines = append(contentLines, styleRegular.Render("Press ")+styleTitle.Render("^E")+styleRegular.Render(" or drop a file/folder to seed to BitTorrent."))
 		}
-		for len(contentLines) < targetContentLines {
-			contentLines = append(contentLines, "")
-		}
+		contentLines = append(contentLines, make([]string, max(targetContentLines-len(contentLines), 0))...)
 	} else if state.FocusedRegion == "detail" && state.DetailResult != nil {
-		// Detail View
 		r := state.DetailResult
 		tag, col := GetSourceBadge(r.Source)
 		badge := lipgloss.NewStyle().Foreground(col).Bold(true).Render(tag)
@@ -274,11 +234,8 @@ func RenderBrowseView(state BrowseViewState) string {
 		}
 		contentLines = append(contentLines, "")
 		contentLines = append(contentLines, styleTitle.Render("↵/d")+styleRegular.Render(" Download   ")+styleTitle.Render("D")+styleRegular.Render(" Folder   ")+styleTitle.Render("y")+styleRegular.Render(" Copy   ")+styleDim.Render("esc/i Close"))
-		for len(contentLines) < targetContentLines {
-			contentLines = append(contentLines, "")
-		}
+		contentLines = append(contentLines, make([]string, max(targetContentLines-len(contentLines), 0))...)
 	} else {
-		// Results Table View
 		count := len(state.Results)
 		headText := ""
 		if state.Searching {
@@ -304,7 +261,6 @@ func RenderBrowseView(state BrowseViewState) string {
 		contentLines = append(contentLines, "")
 
 		if count > 0 {
-			// Column widths calculation
 			contentMaxW := rightWidth - 4
 			numW := 3
 			if count >= 1000 {
@@ -315,12 +271,8 @@ func RenderBrowseView(state BrowseViewState) string {
 			srcW := 5
 			// fixedW: pointer(2) + numW + space(1) + space(1) + sizeW(9) + space(1) + seedW(7) + space(1) + srcW(5)
 			fixedW := 2 + numW + 1 + 1 + sizeW + 1 + seedW + 1 + srcW
-			nameW := contentMaxW - fixedW
-			if nameW < 12 {
-				nameW = 12
-			}
+			nameW := max(contentMaxW-fixedW, 12)
 
-			// Table Header
 			headerRow := fmt.Sprintf("  %*s %-*s %*s %*s %*s",
 				numW, "#",
 				nameW, "Title",
@@ -330,28 +282,15 @@ func RenderBrowseView(state BrowseViewState) string {
 			)
 			contentLines = append(contentLines, styleDim.Render(headerRow))
 
-			// Max visible rows dynamically expands to fill terminal height
-			maxVisible := targetContentLines - 4
-			if maxVisible < 5 {
-				maxVisible = 5
-			}
+			maxVisible := max(targetContentLines-4, 5)
 
-			clampedCursor := state.Cursor
-			if clampedCursor < 0 {
-				clampedCursor = 0
-			}
-			if clampedCursor >= count {
-				clampedCursor = count - 1
-			}
+			clampedCursor := min(max(state.Cursor, 0), count-1)
 
 			start := 0
 			if clampedCursor >= maxVisible {
 				start = clampedCursor - maxVisible + 1
 			}
-			end := start + maxVisible
-			if end > count {
-				end = count
-			}
+			end := min(start+maxVisible, count)
 
 			for i := start; i < end; i++ {
 				r := state.Results[i]
@@ -369,10 +308,7 @@ func RenderBrowseView(state BrowseViewState) string {
 				}
 
 				nameStr := units.Truncate(r.Title, nameW)
-				namePad := nameW - lipgloss.Width(nameStr)
-				if namePad < 0 {
-					namePad = 0
-				}
+				namePad := max(nameW-lipgloss.Width(nameStr), 0)
 				if isHere {
 					nameStr = styleSelected.Render(nameStr) + strings.Repeat(" ", namePad)
 				} else {
@@ -408,19 +344,12 @@ func RenderBrowseView(state BrowseViewState) string {
 				contentLines = append(contentLines, rowLine)
 			}
 
-			// Scroll / pagination indicator
-			currPage := state.Page
-			if currPage < 1 {
-				currPage = 1
-			}
+			currPage := max(state.Page, 1)
 			scrollInfo := fmt.Sprintf("[▲ %d–%d of %d ▼]   ·   page %d   (press \"[\" or \"]\" for prev/next page)", start+1, end, count, currPage)
 			contentLines = append(contentLines, styleDim.Render(scrollInfo))
 		}
 
-		// Fill remaining lines to keep the box full height
-		for len(contentLines) < targetContentLines {
-			contentLines = append(contentLines, "")
-		}
+		contentLines = append(contentLines, make([]string, max(targetContentLines-len(contentLines), 0))...)
 	}
 
 	panelTitle := "Results"
@@ -430,10 +359,7 @@ func RenderBrowseView(state BrowseViewState) string {
 		panelTitle = "Latest"
 	}
 	if len(state.Results) > 0 && state.ActiveCategory != "seeding" {
-		currPage := state.Page
-		if currPage < 1 {
-			currPage = 1
-		}
+		currPage := max(state.Page, 1)
 		filterTag := ""
 		if state.MinSeeds > 0 {
 			filterTag = fmt.Sprintf(" [≥%ds]", state.MinSeeds)
@@ -443,10 +369,8 @@ func RenderBrowseView(state BrowseViewState) string {
 
 	contentBox := renderRoundedBox(panelTitle, rightWidth, contentLines, contentBoxFocused)
 
-	// Combine right pane
 	rightPane := fmt.Sprintf("%s\n%s", searchBox, contentBox)
 
-	// 5. Combine Sidebar & Right Pane
 	var mainLayout string
 	if isTwoCol {
 		sbStyled := lipgloss.NewStyle().Width(sidebarWidth).Render(sidebarContent)
@@ -465,7 +389,6 @@ func RenderBrowseView(state BrowseViewState) string {
 		mainLayout = fmt.Sprintf("%s\n\n%s", topBar, rightPane)
 	}
 
-	// 6. Sleek Minimal Footer Hints (Responsive so it never wraps)
 	var footerHints [][2]string
 	if totalWidth >= 110 {
 		footerHints = [][2]string{

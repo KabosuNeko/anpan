@@ -355,7 +355,7 @@ func TestAppSearchViewNoMascot(t *testing.T) {
 
 	// Verify clean header and search UI are rendered
 	if !strings.Contains(content, "anpan") || !strings.Contains(content, "torrent search & browse") {
-		t.Errorf("Expected sleek header in StageSearch, got: %s", content)
+		t.Errorf("Expected header in StageSearch, got: %s", content)
 	}
 	if !strings.Contains(content, "Search") {
 		t.Errorf("Expected Search box in StageSearch")
@@ -743,5 +743,3 @@ func TestAppTabbedSettingsNavigation(t *testing.T) {
 		t.Errorf("Expected stage StageInput after esc, got %s", m8.stage)
 	}
 }
-
-

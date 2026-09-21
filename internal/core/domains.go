@@ -6,60 +6,48 @@ import (
 	"strings"
 )
 
-type SiteInfo struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
+var knownHosts = []string{
+	"youtube.com", "youtu.be", "music.youtube.com",
+	"x.com", "twitter.com",
+	"instagram.com",
+	"threads.net", "threads.com",
+	"tiktok.com",
+	"vimeo.com",
+	"twitch.tv",
+	"reddit.com",
+	"facebook.com", "fb.watch",
+	"soundcloud.com",
+	"bandcamp.com",
+	"kemono.cr", "kemono.su", "kemono.party",
+	"coomer.su", "coomer.party", "coomer.st",
+	"pawchive.st", "pawchive.pw",
+	"pixiv.net", "pixiv.me",
+	"yande.re",
+	"konachan.com", "konachan.net",
+	"safebooru.org",
+	"gelbooru.com",
+	"pixeldrain.com",
+	"drive.google.com",
+	"catbox.moe",
+	"mediafire.com",
+	"imgur.com",
+	"archive.org",
 }
 
-type knownSite struct {
-	hosts []string
-	site  SiteInfo
-}
-
-var knownSites = []knownSite{
-	{hosts: []string{"youtube.com", "youtu.be", "music.youtube.com"}, site: SiteInfo{Key: "youtube", Label: "YouTube"}},
-	{hosts: []string{"x.com", "twitter.com"}, site: SiteInfo{Key: "x", Label: "X / Twitter"}},
-	{hosts: []string{"instagram.com"}, site: SiteInfo{Key: "instagram", Label: "Instagram"}},
-	{hosts: []string{"threads.net", "threads.com"}, site: SiteInfo{Key: "threads", Label: "Threads"}},
-	{hosts: []string{"tiktok.com"}, site: SiteInfo{Key: "tiktok", Label: "TikTok"}},
-	{hosts: []string{"vimeo.com"}, site: SiteInfo{Key: "vimeo", Label: "Vimeo"}},
-	{hosts: []string{"twitch.tv"}, site: SiteInfo{Key: "twitch", Label: "Twitch"}},
-	{hosts: []string{"reddit.com"}, site: SiteInfo{Key: "reddit", Label: "Reddit"}},
-	{hosts: []string{"facebook.com", "fb.watch"}, site: SiteInfo{Key: "facebook", Label: "Facebook"}},
-	{hosts: []string{"soundcloud.com"}, site: SiteInfo{Key: "soundcloud", Label: "SoundCloud"}},
-	{hosts: []string{"bandcamp.com"}, site: SiteInfo{Key: "bandcamp", Label: "Bandcamp"}},
-	{hosts: []string{"kemono.cr", "kemono.su", "kemono.party"}, site: SiteInfo{Key: "kemono", Label: "Kemono"}},
-	{hosts: []string{"coomer.su", "coomer.party", "coomer.st"}, site: SiteInfo{Key: "coomer", Label: "Coomer"}},
-	{hosts: []string{"pawchive.st", "pawchive.pw"}, site: SiteInfo{Key: "pawchive", Label: "Pawchive"}},
-	{hosts: []string{"pixiv.net", "pixiv.me"}, site: SiteInfo{Key: "pixiv", Label: "Pixiv"}},
-	{hosts: []string{"yande.re"}, site: SiteInfo{Key: "yandere", Label: "Yande.re"}},
-	{hosts: []string{"konachan.com", "konachan.net"}, site: SiteInfo{Key: "konachan", Label: "Konachan"}},
-	{hosts: []string{"safebooru.org"}, site: SiteInfo{Key: "safebooru", Label: "Safebooru"}},
-	{hosts: []string{"gelbooru.com"}, site: SiteInfo{Key: "gelbooru", Label: "Gelbooru"}},
-	{hosts: []string{"pixeldrain.com"}, site: SiteInfo{Key: "pixeldrain", Label: "Pixeldrain"}},
-	{hosts: []string{"drive.google.com"}, site: SiteInfo{Key: "gdrive", Label: "Google Drive"}},
-	{hosts: []string{"catbox.moe"}, site: SiteInfo{Key: "catbox", Label: "Catbox"}},
-	{hosts: []string{"mediafire.com"}, site: SiteInfo{Key: "mediafire", Label: "MediaFire"}},
-	{hosts: []string{"imgur.com"}, site: SiteInfo{Key: "imgur", Label: "Imgur"}},
-	{hosts: []string{"archive.org"}, site: SiteInfo{Key: "archive_org", Label: "Internet Archive"}},
-}
-
-func IdentifySite(rawURL string) SiteInfo {
+// IsKnownSite reports whether rawURL's host matches a known media site, including its subdomains.
+func IsKnownSite(rawURL string) bool {
 	u, err := url.Parse(rawURL)
-	if err != nil || u.Hostname() == "" {
-		return SiteInfo{Key: "unknown", Label: "Unknown site"}
+	if err != nil {
+		return false
 	}
 	hostname := strings.ToLower(u.Hostname())
 
-	for _, ks := range knownSites {
-		for _, h := range ks.hosts {
-			if hostname == h || strings.HasSuffix(hostname, "."+h) {
-				return ks.site
-			}
+	for _, h := range knownHosts {
+		if hostname == h || strings.HasSuffix(hostname, "."+h) {
+			return true
 		}
 	}
-
-	return SiteInfo{Key: "generic", Label: hostname}
+	return false
 }
 
 var timeRangeRegex = regexp.MustCompile(`(?i)(?:^|\s+)((?:\d{1,2}:)?\d{1,2}:\d{2}|\d+)\s*-\s*((?:\d{1,2}:)?\d{1,2}:\d{2}|\d+)\s*$`)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -126,8 +125,6 @@ var stageHints = map[StageName][][2]string{
 	},
 }
 
-type errMsg error
-
 type inspectMsg struct {
 	target *core.TargetInspection
 	err    error
@@ -238,7 +235,6 @@ type Model struct {
 	// Baking stage
 	bakingProgress engine.BakeProgress
 	processing     bool
-	resultFilePath string
 
 	// Settings stage
 	settingsTab   int
@@ -247,14 +243,14 @@ type Model struct {
 	settingsDir   textinput.Model
 
 	// Browse & Search stage
-	browseCategory  string
-	browseRegion    string
-	browseInput     textinput.Model
-	browseResults   []engine.TorrentSearchResult
-	browseCursor    int
-	browsePage      int
-	browseSort      string
-	browseSearching bool
+	browseCategory   string
+	browseRegion     string
+	browseInput      textinput.Model
+	browseResults    []engine.TorrentSearchResult
+	browseCursor     int
+	browsePage       int
+	browseSort       string
+	browseSearching  bool
 	browseStatus     string
 	browseDetail     *engine.TorrentSearchResult
 	browseMinSeeds   int
@@ -263,12 +259,11 @@ type Model struct {
 	draftSearch      string
 
 	// Seeding stage
-	seedInput       textinput.Model
-	seedingActive   bool
-	seedingName     string
-	seedingMagnet   string
-	seedingProgress engine.BakeProgress
-	seedingCancel   context.CancelFunc
+	seedInput     textinput.Model
+	seedingActive bool
+	seedingName   string
+	seedingMagnet string
+	seedingCancel context.CancelFunc
 
 	// Final outcome
 	FinalPath string
@@ -314,18 +309,7 @@ func NewModel(version, initialURL, initialOutDir string) Model {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cfg := system.LoadConfig()
-	if cfg.ColorTheme != "" {
-		ApplyTheme(cfg.ColorTheme)
-	}
-
-	defaultSort := "seeds"
-	if cfg.DefaultSearchSort != "" {
-		defaultSort = cfg.DefaultSearchSort
-	}
-	defaultCat := "all"
-	if cfg.DefaultSearchCat != "" {
-		defaultCat = cfg.DefaultSearchCat
-	}
+	ApplyTheme(cfg.ColorTheme)
 
 	m := Model{
 		version:          version,
@@ -342,9 +326,9 @@ func NewModel(version, initialURL, initialOutDir string) Model {
 		settingsDir:      sdi,
 		browseInput:      bi,
 		seedInput:        si,
-		browseCategory:   defaultCat,
+		browseCategory:   cfg.DefaultSearchCat,
 		browseRegion:     "content",
-		browseSort:       defaultSort,
+		browseSort:       cfg.DefaultSearchSort,
 		browsePage:       1,
 		browseMinSeeds:   0,
 		spinner:          s,
@@ -565,57 +549,6 @@ func (m Model) startSearch(query, category string, page int) tea.Cmd {
 	}
 }
 
-func sortSearchResults(results []engine.TorrentSearchResult, sortBy string) {
-	switch strings.ToLower(sortBy) {
-	case "seeds":
-		sort.SliceStable(results, func(i, j int) bool {
-			if results[i].Seeders == results[j].Seeders {
-				return results[i].SizeBytes > results[j].SizeBytes
-			}
-			return results[i].Seeders > results[j].Seeders
-		})
-	case "size", "size-desc":
-		sort.SliceStable(results, func(i, j int) bool {
-			return results[i].SizeBytes > results[j].SizeBytes
-		})
-	case "size-asc", "size-up", "smallest":
-		sort.SliceStable(results, func(i, j int) bool {
-			if results[i].SizeBytes <= 0 && results[j].SizeBytes > 0 {
-				return false
-			}
-			if results[i].SizeBytes > 0 && results[j].SizeBytes <= 0 {
-				return true
-			}
-			if results[i].SizeBytes == results[j].SizeBytes {
-				return results[i].Seeders > results[j].Seeders
-			}
-			return results[i].SizeBytes < results[j].SizeBytes
-		})
-	case "peers", "leechers", "activity":
-		sort.SliceStable(results, func(i, j int) bool {
-			pi := results[i].Seeders + results[i].Leechers
-			pj := results[j].Seeders + results[j].Leechers
-			if pi == pj {
-				return results[i].Seeders > results[j].Seeders
-			}
-			return pi > pj
-		})
-	case "source":
-		sort.SliceStable(results, func(i, j int) bool {
-			si := strings.ToLower(results[i].Source)
-			sj := strings.ToLower(results[j].Source)
-			if si == sj {
-				return results[i].Seeders > results[j].Seeders
-			}
-			return si < sj
-		})
-	case "name":
-		sort.SliceStable(results, func(i, j int) bool {
-			return strings.ToLower(results[i].Title) < strings.ToLower(results[j].Title)
-		})
-	}
-}
-
 func (m Model) getFilteredBrowseResults() []engine.TorrentSearchResult {
 	if m.browseMinSeeds <= 0 {
 		return m.browseResults
@@ -627,6 +560,165 @@ func (m Model) getFilteredBrowseResults() []engine.TorrentSearchResult {
 		}
 	}
 	return filtered
+}
+
+// selectedTorrent returns the torrent under the browse cursor or shown in the detail view.
+func (m Model) selectedTorrent() (engine.TorrentSearchResult, bool) {
+	if m.browseRegion == "detail" && m.browseDetail != nil {
+		return *m.browseDetail, true
+	}
+	results := m.getFilteredBrowseResults()
+	if m.browseRegion == "content" && len(results) > m.browseCursor {
+		return results[m.browseCursor], true
+	}
+	return engine.TorrentSearchResult{}, false
+}
+
+// beginTorrentDownload targets r and either prompts for a save folder or bakes
+// straight into the configured output directory.
+func (m *Model) beginTorrentDownload(r engine.TorrentSearchResult, forceDest bool) tea.Cmd {
+	m.target = &core.TargetInspection{
+		Type:   core.TargetTorrent,
+		Target: r.Magnet,
+		Name:   r.Title,
+	}
+	if forceDest || (m.config.AskSaveDir && m.initialOutDir == "") {
+		m.promptDest(r.Title, fmt.Sprintf("BitTorrent · %s", r.Source))
+		return nil
+	}
+	return m.bakeInto(m.config.OutDir, 1)
+}
+
+// promptDest opens the destination picker for the pending download.
+func (m *Model) promptDest(title, sub string) {
+	m.stage = StageDest
+	m.isCustomDest = false
+	m.destIndex = 0
+	m.destTargetTitle = title
+	m.destTargetSub = sub
+}
+
+// bakeInto starts baking into dest with the expected number of parts.
+func (m *Model) bakeInto(dest string, parts int) tea.Cmd {
+	m.chosenDest = dest
+	m.stage = StageBaking
+	m.bakingProgress = engine.BakeProgress{TotalParts: parts}
+	return m.startBake()
+}
+
+func toastAfter(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return toastClearMsg{} })
+}
+
+// stepSearchHistory walks the search history; up moves to older entries, down to newer ones.
+func (m *Model) stepSearchHistory(up bool) {
+	if up {
+		if len(m.searchHistory) == 0 {
+			return
+		}
+		if m.searchHistoryPos == -1 {
+			m.draftSearch = m.browseInput.Value()
+			m.searchHistoryPos = 0
+		} else if m.searchHistoryPos < len(m.searchHistory)-1 {
+			m.searchHistoryPos++
+		}
+		m.browseInput.SetValue(m.searchHistory[m.searchHistoryPos])
+		m.browseInput.CursorEnd()
+		return
+	}
+	if m.searchHistoryPos != -1 {
+		if m.searchHistoryPos > 0 {
+			m.searchHistoryPos--
+			m.browseInput.SetValue(m.searchHistory[m.searchHistoryPos])
+			m.browseInput.CursorEnd()
+		} else {
+			m.searchHistoryPos = -1
+			m.browseInput.SetValue(m.draftSearch)
+			m.browseInput.CursorEnd()
+		}
+	}
+}
+
+// stepURLHistory walks the URL history; up moves to older entries, down to newer ones.
+func (m *Model) stepURLHistory(up bool) {
+	if up {
+		if len(m.history) == 0 {
+			return
+		}
+		if m.historyPos == -1 {
+			m.draftInput = m.urlInput.Value()
+			m.historyPos = 0
+		} else if m.historyPos < len(m.history)-1 {
+			m.historyPos++
+		}
+		m.urlInput.SetValue(m.history[m.historyPos])
+		m.urlInput.CursorEnd()
+		return
+	}
+	if m.historyPos != -1 {
+		if m.historyPos > 0 {
+			m.historyPos--
+			m.urlInput.SetValue(m.history[m.historyPos])
+			m.urlInput.CursorEnd()
+		} else {
+			m.historyPos = -1
+			m.urlInput.SetValue(m.draftInput)
+			m.urlInput.CursorEnd()
+		}
+	}
+}
+
+// cycleCategory moves the sidebar selection by delta, wrapping around, and searches
+// for the newly selected category.
+func (m *Model) cycleCategory(delta int) tea.Cmd {
+	idx := 0
+	for i, c := range BrowseCategories {
+		if c.Key == m.browseCategory {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + delta + len(BrowseCategories)) % len(BrowseCategories)
+	m.browseCategory = BrowseCategories[idx].Key
+	if m.browseCategory == "seeding" {
+		return nil
+	}
+	m.browseSearching = true
+	m.browseCursor = 0
+	m.browsePage = 1
+	return tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, 1))
+}
+
+// cycleBrowseFocus moves focus between the browse regions; forward follows tab order.
+func (m *Model) cycleBrowseFocus(forward bool) {
+	switch m.browseRegion {
+	case "sidebar":
+		if forward {
+			m.browseRegion = "search"
+			m.browseInput.Focus()
+		} else {
+			m.browseRegion = "content"
+		}
+	case "search":
+		if forward {
+			m.browseRegion = "content"
+		} else {
+			m.browseRegion = "sidebar"
+		}
+		m.browseInput.Blur()
+	case "content":
+		if forward {
+			m.browseRegion = "sidebar"
+		} else {
+			m.browseRegion = "search"
+			m.browseInput.Focus()
+		}
+	case "detail":
+		m.browseRegion = "content"
+		m.browseDetail = nil
+	default:
+		m.browseRegion = "sidebar"
+	}
 }
 
 func (m Model) startSeed(targetPath string) tea.Cmd {
@@ -653,7 +745,7 @@ func (m *Model) startSeedingProcess(torrentPath, dataDir string) tea.Cmd {
 	return func() tea.Msg {
 		aria2c, err := engine.FindAria2c()
 		if err != nil {
-			return errMsg(err)
+			return nil
 		}
 		handlers := engine.BakeHandlers{
 			OnProgress: func(p engine.BakeProgress) {
@@ -703,10 +795,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+f":
 			m.stage = StageSearch
-			m.browseCategory = "all"
-			if m.config.DefaultSearchCat != "" {
-				m.browseCategory = m.config.DefaultSearchCat
-			}
+			m.browseCategory = m.config.DefaultSearchCat
 			m.browseRegion = "search"
 			m.browseInput.Focus()
 			m.browsePage = 1
@@ -786,21 +875,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.stage == StageSearch {
-				switch m.browseRegion {
-				case "sidebar":
-					m.browseRegion = "search"
-					m.browseInput.Focus()
-				case "search":
-					m.browseRegion = "content"
-					m.browseInput.Blur()
-				case "content":
-					m.browseRegion = "sidebar"
-				case "detail":
-					m.browseRegion = "content"
-					m.browseDetail = nil
-				default:
-					m.browseRegion = "sidebar"
-				}
+				m.cycleBrowseFocus(true)
 				return m, nil
 			}
 			if m.stage == StageInput && m.clipboardURL != "" {
@@ -816,123 +891,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.stage == StageSearch {
-				switch m.browseRegion {
-				case "sidebar":
-					m.browseRegion = "content"
-				case "search":
-					m.browseRegion = "sidebar"
-					m.browseInput.Blur()
-				case "content":
-					m.browseRegion = "search"
-					m.browseInput.Focus()
-				case "detail":
-					m.browseRegion = "content"
-					m.browseDetail = nil
-				default:
-					m.browseRegion = "sidebar"
-				}
+				m.cycleBrowseFocus(false)
 				return m, nil
 			}
 
 		case "d":
 			if m.stage == StageSearch {
-				results := m.getFilteredBrowseResults()
-				if (m.browseRegion == "content" && len(results) > m.browseCursor) || (m.browseRegion == "detail" && m.browseDetail != nil) {
-					var r engine.TorrentSearchResult
-					if m.browseRegion == "detail" && m.browseDetail != nil {
-						r = *m.browseDetail
-					} else {
-						r = results[m.browseCursor]
-					}
-					m.target = &core.TargetInspection{
-						Type:   core.TargetTorrent,
-						Target: r.Magnet,
-						Name:   r.Title,
-					}
-					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.stage = StageDest
-						m.isCustomDest = false
-						m.destIndex = 0
-						m.destTargetTitle = r.Title
-						m.destTargetSub = fmt.Sprintf("BitTorrent · %s", r.Source)
-						return m, nil
-					}
-					m.chosenDest = m.config.OutDir
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
-				}
-			}
-			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.config.OutDir)
-				for _, o := range opts {
-					if o.Key == "D" {
-						m.chosenDest = o.Path
-						m.stage = StageBaking
-						m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-						return m, m.startBake()
-					}
+				if r, ok := m.selectedTorrent(); ok {
+					return m, m.beginTorrentDownload(r, false)
 				}
 			}
 
 		case "D":
 			if m.stage == StageSearch {
-				results := m.getFilteredBrowseResults()
-				if (m.browseRegion == "content" && len(results) > m.browseCursor) || (m.browseRegion == "detail" && m.browseDetail != nil) {
-					var r engine.TorrentSearchResult
-					if m.browseRegion == "detail" && m.browseDetail != nil {
-						r = *m.browseDetail
-					} else {
-						r = results[m.browseCursor]
-					}
-					m.target = &core.TargetInspection{
-						Type:   core.TargetTorrent,
-						Target: r.Magnet,
-						Name:   r.Title,
-					}
-					m.stage = StageDest
-					m.isCustomDest = false
-					m.destIndex = 0
-					m.destTargetTitle = r.Title
-					m.destTargetSub = fmt.Sprintf("BitTorrent · %s", r.Source)
-					return m, nil
-				}
-			}
-			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.config.OutDir)
-				for _, o := range opts {
-					if o.Key == "D" {
-						m.chosenDest = o.Path
-						m.stage = StageBaking
-						m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-						return m, m.startBake()
-					}
-				}
-			}
-
-		case "v", "V":
-			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.config.OutDir)
-				for _, o := range opts {
-					if o.Key == "V" {
-						m.chosenDest = o.Path
-						m.stage = StageBaking
-						m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-						return m, m.startBake()
-					}
-				}
-			}
-
-		case "c", "C":
-			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.config.OutDir)
-				for _, o := range opts {
-					if o.Key == "C" {
-						m.chosenDest = o.Path
-						m.stage = StageBaking
-						m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-						return m, m.startBake()
-					}
+				if r, ok := m.selectedTorrent(); ok {
+					return m, m.beginTorrentDownload(r, true)
 				}
 			}
 
@@ -979,32 +952,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.browseStatus = fmt.Sprintf("Filter: All seeds (%d items)", len(results))
 				}
-				return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-					return toastClearMsg{}
-				})
+				return m, toastAfter(2 * time.Second)
 			}
 
 		case "o", "O":
 			if m.stage == StageSearch {
-				results := m.getFilteredBrowseResults()
-				if (m.browseRegion == "content" && len(results) > m.browseCursor) || (m.browseRegion == "detail" && m.browseDetail != nil) {
-					var r engine.TorrentSearchResult
-					if m.browseRegion == "detail" && m.browseDetail != nil {
-						r = *m.browseDetail
-					} else {
-						r = results[m.browseCursor]
-					}
-					m.target = &core.TargetInspection{
-						Type:   core.TargetTorrent,
-						Target: r.Magnet,
-						Name:   r.Title,
-					}
-					m.stage = StageDest
-					m.isCustomDest = false
-					m.destIndex = 0
-					m.destTargetTitle = r.Title
-					m.destTargetSub = fmt.Sprintf("BitTorrent · %s", r.Source)
-					return m, nil
+				if r, ok := m.selectedTorrent(); ok {
+					return m, m.beginTorrentDownload(r, true)
 				}
 			}
 			if m.stage == StageDest && !m.isCustomDest {
@@ -1021,16 +975,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					r := results[m.browseCursor]
 					_ = system.WriteClipboard(r.Magnet)
 					m.browseStatus = "Magnet copied to clipboard!"
-					return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-						return toastClearMsg{}
-					})
+					return m, toastAfter(2 * time.Second)
 				}
 				if m.browseRegion == "detail" && m.browseDetail != nil {
 					_ = system.WriteClipboard(m.browseDetail.Magnet)
 					m.browseStatus = "Magnet copied to clipboard!"
-					return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-						return toastClearMsg{}
-					})
+					return m, toastAfter(2 * time.Second)
 				}
 			}
 			if m.stage == StageSeeding && m.seedingMagnet != "" {
@@ -1056,11 +1006,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				default:
 					m.browseSort = "seeds"
 				}
-				sortSearchResults(m.browseResults, m.browseSort)
+				engine.SortSearchResults(m.browseResults, m.browseSort)
 				m.browseStatus = "Sorted by " + FormatSortLabel(m.browseSort)
-				return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-					return toastClearMsg{}
-				})
+				return m, toastAfter(2 * time.Second)
 			}
 
 		case "[", "<", "p":
@@ -1168,31 +1116,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.browseRegion = "content"
 					return m, nil
 				}
-				results := m.getFilteredBrowseResults()
-				if (m.browseRegion == "content" && len(results) > m.browseCursor) || (m.browseRegion == "detail" && m.browseDetail != nil) {
-					var r engine.TorrentSearchResult
-					if m.browseRegion == "detail" && m.browseDetail != nil {
-						r = *m.browseDetail
-					} else {
-						r = results[m.browseCursor]
-					}
-					m.target = &core.TargetInspection{
-						Type:   core.TargetTorrent,
-						Target: r.Magnet,
-						Name:   r.Title,
-					}
-					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.stage = StageDest
-						m.isCustomDest = false
-						m.destIndex = 0
-						m.destTargetTitle = r.Title
-						m.destTargetSub = fmt.Sprintf("BitTorrent · %s", r.Source)
-						return m, nil
-					}
-					m.chosenDest = m.config.OutDir
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
+				if r, ok := m.selectedTorrent(); ok {
+					return m, m.beginTorrentDownload(r, false)
 				}
 				return m, nil
 
@@ -1253,17 +1178,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case StageDirectPrompt:
 				if m.promptChoice == 0 {
 					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.stage = StageDest
-						m.isCustomDest = false
-						m.destIndex = 0
-						m.destTargetTitle = m.target.Filename
-						m.destTargetSub = fmt.Sprintf("%d connections · direct file", m.config.Connections)
+						m.promptDest(m.target.Filename, fmt.Sprintf("%d connections · direct file", m.config.Connections))
 						return m, nil
 					}
-					m.chosenDest = m.config.OutDir
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
+					return m, m.bakeInto(m.config.OutDir, 1)
 				}
 				m.stage = StageInput
 				return m, nil
@@ -1271,17 +1189,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case StageTorrentPrompt:
 				if m.promptChoice == 0 {
 					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.stage = StageDest
-						m.isCustomDest = false
-						m.destIndex = 0
-						m.destTargetTitle = m.target.Name
-						m.destTargetSub = "BitTorrent P2P transfer · aria2c"
+						m.promptDest(m.target.Name, "BitTorrent P2P transfer · aria2c")
 						return m, nil
 					}
-					m.chosenDest = m.config.OutDir
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
+					return m, m.bakeInto(m.config.OutDir, 1)
 				}
 				m.stage = StageInput
 				return m, nil
@@ -1316,33 +1227,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.selectedArchiveFiles = []engine.ArchiveFile{m.archivePost.Files[m.selectedPortion-1]}
 					}
 					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.stage = StageDest
-						m.isCustomDest = false
-						m.destIndex = 0
-						m.destTargetTitle = m.archivePost.Title
-						m.destTargetSub = fmt.Sprintf("Archive batch (%d items)", len(m.selectedArchiveFiles))
+						m.promptDest(m.archivePost.Title, fmt.Sprintf("Archive batch (%d items)", len(m.selectedArchiveFiles)))
 						return m, nil
 					}
-					m.chosenDest = m.config.OutDir
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: len(m.selectedArchiveFiles)}
-					return m, m.startBake()
+					return m, m.bakeInto(m.config.OutDir, len(m.selectedArchiveFiles))
 				}
 
 				if m.config.AskSaveDir && m.initialOutDir == "" {
-					m.stage = StageDest
-					m.isCustomDest = false
-					m.destIndex = 0
-					if m.probeResult != nil {
-						m.destTargetTitle = m.probeResult.Meta.Title
-						m.destTargetSub = m.portions[m.selectedPortion].Label
-					}
+					m.promptDest(m.destTargetTitle, m.destTargetSub)
 					return m, nil
 				}
-				m.chosenDest = m.config.OutDir
-				m.stage = StageBaking
-				m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-				return m, m.startBake()
+				return m, m.bakeInto(m.config.OutDir, 1)
 
 			case StageDest:
 				if m.isCustomDest {
@@ -1350,10 +1245,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if val == "" {
 						val = m.config.OutDir
 					}
-					m.chosenDest = units.ResolveUserPath(val)
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
+					return m, m.bakeInto(units.ResolveUserPath(val), 1)
 				}
 				opts := BuildDestOptions(m.config.OutDir)
 				if m.destIndex >= 0 && m.destIndex < len(opts) {
@@ -1364,12 +1256,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.destInput.Focus()
 						return m, nil
 					}
-					m.chosenDest = opt.Path
-					m.stage = StageBaking
-					m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-					return m, m.startBake()
+					return m, m.bakeInto(opt.Path, 1)
 				}
-
 			case StageBaked, StageError:
 				m.stage = StageInput
 				m.urlInput.Reset()
@@ -1380,39 +1268,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.stage == StageSearch {
 				if m.browseRegion == "search" {
-					if len(m.searchHistory) > 0 {
-						if m.searchHistoryPos == -1 {
-							m.draftSearch = m.browseInput.Value()
-							m.searchHistoryPos = 0
-						} else if m.searchHistoryPos < len(m.searchHistory)-1 {
-							m.searchHistoryPos++
-						}
-						m.browseInput.SetValue(m.searchHistory[m.searchHistoryPos])
-						m.browseInput.CursorEnd()
-					}
+					m.stepSearchHistory(true)
 					return m, nil
 				}
 				if m.browseRegion == "sidebar" {
-					idx := 0
-					for i, c := range BrowseCategories {
-						if c.Key == m.browseCategory {
-							idx = i
-							break
-						}
-					}
-					if idx > 0 {
-						idx--
-					} else {
-						idx = len(BrowseCategories) - 1
-					}
-					m.browseCategory = BrowseCategories[idx].Key
-					if m.browseCategory != "seeding" {
-						m.browseSearching = true
-						m.browseCursor = 0
-						m.browsePage = 1
-						return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, 1))
-					}
-					return m, nil
+					return m, m.cycleCategory(-1)
 				}
 				if m.browseRegion == "content" {
 					if m.browseCursor > 0 {
@@ -1425,16 +1285,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if m.stage == StageInput {
-				if len(m.history) > 0 {
-					if m.historyPos == -1 {
-						m.draftInput = m.urlInput.Value()
-						m.historyPos = 0
-					} else if m.historyPos < len(m.history)-1 {
-						m.historyPos++
-					}
-					m.urlInput.SetValue(m.history[m.historyPos])
-					m.urlInput.CursorEnd()
-				}
+				m.stepURLHistory(true)
 				return m, nil
 			}
 			if m.stage == StageDest && !m.isCustomDest {
@@ -1463,40 +1314,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			if m.stage == StageSearch {
 				if m.browseRegion == "search" {
-					if m.searchHistoryPos != -1 {
-						if m.searchHistoryPos > 0 {
-							m.searchHistoryPos--
-							m.browseInput.SetValue(m.searchHistory[m.searchHistoryPos])
-							m.browseInput.CursorEnd()
-						} else {
-							m.searchHistoryPos = -1
-							m.browseInput.SetValue(m.draftSearch)
-							m.browseInput.CursorEnd()
-						}
-					}
+					m.stepSearchHistory(false)
 					return m, nil
 				}
 				if m.browseRegion == "sidebar" {
-					idx := 0
-					for i, c := range BrowseCategories {
-						if c.Key == m.browseCategory {
-							idx = i
-							break
-						}
-					}
-					if idx < len(BrowseCategories)-1 {
-						idx++
-					} else {
-						idx = 0
-					}
-					m.browseCategory = BrowseCategories[idx].Key
-					if m.browseCategory != "seeding" {
-						m.browseSearching = true
-						m.browseCursor = 0
-						m.browsePage = 1
-						return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, 1))
-					}
-					return m, nil
+					return m, m.cycleCategory(1)
 				}
 				if m.browseRegion == "content" {
 					results := m.getFilteredBrowseResults()
@@ -1507,17 +1329,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if m.stage == StageInput {
-				if m.historyPos != -1 {
-					if m.historyPos > 0 {
-						m.historyPos--
-						m.urlInput.SetValue(m.history[m.historyPos])
-						m.urlInput.CursorEnd()
-					} else {
-						m.historyPos = -1
-						m.urlInput.SetValue(m.draftInput)
-						m.urlInput.CursorEnd()
-					}
-				}
+				m.stepURLHistory(false)
 				return m, nil
 			}
 			if m.stage == StageDest && !m.isCustomDest {
@@ -1660,19 +1472,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedArchiveFiles = msg.target.ArchivePost.Files
 			}
 			if m.config.AskSaveDir && m.initialOutDir == "" {
-				m.stage = StageDest
-				m.isCustomDest = false
-				m.destIndex = 0
+				title := m.destTargetTitle
 				if msg.target.ArchivePost != nil {
-					m.destTargetTitle = msg.target.ArchivePost.Title
+					title = msg.target.ArchivePost.Title
 				}
-				m.destTargetSub = "Archive file download"
+				m.promptDest(title, "Archive file download")
 				return m, nil
 			}
-			m.chosenDest = m.config.OutDir
-			m.stage = StageBaking
-			m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-			return m, m.startBake()
+			return m, m.bakeInto(m.config.OutDir, 1)
 
 		case core.TargetVideo:
 			m.statusText = "extracting formats with yt-dlp…"
@@ -1705,26 +1512,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.browseStatus = "Search failed: " + msg.err.Error()
 			}
-			return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
-				return toastClearMsg{}
-			})
+			return m, toastAfter(3 * time.Second)
 		}
 		if len(msg.results) == 0 && m.browsePage > 1 {
 			failedPage := m.browsePage
 			m.browsePage--
 			m.browseStatus = fmt.Sprintf("No more results on page %d (returned to page %d)", failedPage, m.browsePage)
-			return m, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
-				return toastClearMsg{}
-			})
+			return m, toastAfter(3 * time.Second)
 		}
 		m.browseResults = msg.results
-		sortSearchResults(m.browseResults, m.browseSort)
+		engine.SortSearchResults(m.browseResults, m.browseSort)
 		m.browseCursor = 0
 		if m.browsePage > 1 {
 			m.browseStatus = fmt.Sprintf("Loaded page %d (%d items)", m.browsePage, len(m.browseResults))
-			return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
-				return toastClearMsg{}
-			})
+			return m, toastAfter(2 * time.Second)
 		}
 		return m, nil
 	case seedCreatedMsg:
@@ -1791,17 +1592,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if chosenIdx != -1 {
 				m.selectedPortion = chosenIdx
 				if m.config.AskSaveDir && m.initialOutDir == "" {
-					m.stage = StageDest
-					m.isCustomDest = false
-					m.destIndex = 0
-					m.destTargetTitle = m.probeResult.Meta.Title
-					m.destTargetSub = m.portions[chosenIdx].Label
+					m.promptDest(m.probeResult.Meta.Title, m.portions[chosenIdx].Label)
 					return m, nil
 				}
-				m.chosenDest = m.config.OutDir
-				m.stage = StageBaking
-				m.bakingProgress = engine.BakeProgress{TotalParts: 1}
-				return m, m.startBake()
+				return m, m.bakeInto(m.config.OutDir, 1)
 			}
 		}
 
@@ -1822,7 +1616,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.stage = StageBaked
-		m.resultFilePath = msg.path
 		m.FinalPath = msg.path
 
 		// Fetch and save synced lyrics for audio tracks
@@ -1908,18 +1701,9 @@ func (m Model) View() tea.View {
 		vHeight = 24
 	}
 
-	// PRO MAX SEARCH UI:
-	// Clean, dedicated, maximized viewport without ASCII mascot or header clutter
 	if m.stage == StageSearch {
-		searchWidth := vWidth - 2
-		if searchWidth > vWidth {
-			searchWidth = vWidth
-		}
-		if searchWidth < 48 {
-			searchWidth = 48
-		}
 		browseState := BrowseViewState{
-			Width:           searchWidth,
+			Width:           vWidth - 2,
 			Height:          vHeight,
 			ActiveCategory:  m.browseCategory,
 			FocusedRegion:   m.browseRegion,
@@ -2135,7 +1919,7 @@ func (m Model) View() tea.View {
 				}
 				eta := ""
 				if m.bakingProgress.ETA > 0 {
-					eta = units.FormatEta(m.bakingProgress.ETA) + " left"
+					eta = units.FormatDuration(m.bakingProgress.ETA) + " left"
 				}
 				metaLine := fmt.Sprintf("%s%10s  %-12s%s", partTag, speed, eta, extraConn)
 				stats := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleDim.Render(strings.TrimSpace(metaLine)))
@@ -2167,7 +1951,7 @@ func (m Model) View() tea.View {
 	case StageBaked:
 		status := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleRegular.Render("downloaded"))
 		home, _ := os.UserHomeDir()
-		path := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleDim.Render(units.ShortenPath(m.resultFilePath, home, panelWidth)))
+		path := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleDim.Render(units.ShortenPath(m.FinalPath, home, panelWidth)))
 		again := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleRegular.Render("↵ download another"))
 		stageBlock = fmt.Sprintf("%s\n%s\n\n%s", status, path, again)
 

@@ -5,7 +5,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -88,13 +87,6 @@ func FormatSpeed(bytesPerSecond float64) string {
 	return fmt.Sprintf("%s/s", FormatBytes(bytesPerSecond))
 }
 
-func FormatEta(seconds float64) string {
-	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
-		return ""
-	}
-	return FormatDuration(seconds)
-}
-
 func Truncate(text string, max int) string {
 	if runewidth.StringWidth(text) <= max {
 		return text
@@ -171,16 +163,10 @@ func ResolveUserPath(raw string, customHome ...string) string {
 	return abs
 }
 
-var whitespaceRegex = regexp.MustCompile(`\s+`)
-
 func WrapText(text string, width int) []string {
 	var lines []string
-	words := whitespaceRegex.Split(strings.TrimSpace(text), -1)
 	current := ""
-	for _, word := range words {
-		if word == "" {
-			continue
-		}
+	for _, word := range strings.Fields(text) {
 		if current == "" {
 			current = word
 		} else if runewidth.StringWidth(current)+1+runewidth.StringWidth(word) <= width {
