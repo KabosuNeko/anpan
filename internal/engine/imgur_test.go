@@ -12,6 +12,7 @@ func TestIsImgurURL(t *testing.T) {
 		{"https://imgur.com/a/7eeLGLM", true},
 		{"https://imgur.com/gallery/7eeLGLM", true},
 		{"https://i.imgur.com/abcde.jpg", false},
+		{"https://evil.com/?u=https://imgur.com/a/7eeLGLM", false},
 		{"https://youtube.com/watch?v=123", false},
 	}
 

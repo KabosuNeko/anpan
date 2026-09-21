@@ -12,6 +12,9 @@ func TestIsArchiveOrgURL(t *testing.T) {
 	if IsArchiveOrgURL("https://youtube.com/watch?v=123") {
 		t.Errorf("expected false for youtube URL")
 	}
+	if IsArchiveOrgURL("https://evil.com/?u=https://archive.org/details/x") {
+		t.Errorf("expected false for embedded archive.org URL")
+	}
 }
 
 func TestProbeArchiveOrgLive(t *testing.T) {
