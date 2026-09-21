@@ -44,7 +44,7 @@ var searchHTTPClient = &http.Client{
 }
 
 const (
-	uaAnpan   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.0"
+	uaAnpan   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.1"
 	uaTorlink = "anpan/torlink-client"
 )
 
