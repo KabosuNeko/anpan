@@ -25,25 +25,8 @@ detect_platform() {
   echo "anpan-${os}-${arch}.tar.gz"
 }
 
-get_latest_version() {
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' || true
-  elif command -v wget >/dev/null 2>&1; then
-    wget -qO- "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' || true
-  fi
-}
-
 ASSET="$(detect_platform)"
-VERSION="${ANPAN_VERSION:-}"
-if [ -z "$VERSION" ]; then
-  VERSION="$(get_latest_version || true)"
-fi
-
-if [ -z "$VERSION" ]; then
-  DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
-else
-  DOWNLOAD_URL="https://github.com/$REPO/releases/download/v${VERSION}/$ASSET"
-fi
+DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
 
 TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
@@ -52,11 +35,7 @@ trap cleanup EXIT
 echo "→ Downloading $BIN_NAME ($ASSET) ..."
 ARCHIVE="$TMP_DIR/$ASSET"
 if command -v curl >/dev/null 2>&1; then
-  if ! curl -fsSL "$DOWNLOAD_URL" -o "$ARCHIVE"; then
-    echo "→ Retrying with latest release..." >&2
-    DOWNLOAD_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
-    curl -fsSL "$DOWNLOAD_URL" -o "$ARCHIVE"
-  fi
+  curl -fsSL "$DOWNLOAD_URL" -o "$ARCHIVE"
 elif command -v wget >/dev/null 2>&1; then
   wget -qO "$ARCHIVE" "$DOWNLOAD_URL"
 else
@@ -75,7 +54,7 @@ chmod +x "$INSTALL_PATH"
 echo "✓ Installed $BIN_NAME to $INSTALL_PATH"
 
 # Install Desktop Entry & Icon on Linux
-if [ "$os" = "linux" ]; then
+if [ "$(uname -s)" = "Linux" ]; then
   if [ -f "$TMP_DIR/assets/anpan.desktop" ]; then
     mkdir -p "$HOME/.local/share/applications"
     cp "$TMP_DIR/assets/anpan.desktop" "$HOME/.local/share/applications/anpan.desktop"

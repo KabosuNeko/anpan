@@ -2,10 +2,6 @@ version: 2
 
 project_name: anpan
 
-before:
-  hooks:
-    - go mod tidy
-
 builds:
   - id: anpan
     main: .
@@ -36,7 +32,6 @@ archives:
         format: zip
     files:
       - LICENSE
-      - README.md
       - assets/*
 
 checksum:

@@ -96,12 +96,12 @@ To use `Tab` to paste or `y` to copy magnet links in Linux terminals:
 
 ---
 
-## 6. Resetting State, Cache & Configurations
+## 6. Resetting State & Configuration
 
 ### Reset Standalone Helper Binaries
 If the managed `yt-dlp` binary becomes corrupted or outdated:
 ```sh
-rm -rf ~/.anpan/bin ~/.cache/anpan
+rm -rf ~/.anpan/bin
 ```
 Anpan will automatically re-download a fresh copy on the next run.
 
@@ -111,9 +111,3 @@ If you want to reset all settings to factory defaults:
 rm ~/.config/anpan/config.json
 ```
 Anpan will generate a clean `config.json` with recommended defaults on the next launch.
-
-### Complete Clean Uninstallation
-```sh
-anpan uninstall --purge -y
-```
-This removes the binary, desktop integration, config directory, and caches completely.
