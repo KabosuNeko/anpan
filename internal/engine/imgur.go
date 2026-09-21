@@ -12,11 +12,10 @@ import (
 	"time"
 )
 
-var imgurRegex = regexp.MustCompile(`(?i)imgur\.com/(?:a/|gallery/|t/[^/]+/)?([a-zA-Z0-9]{5,8})`)
+var imgurRegex = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?imgur\.com/(?:a/|gallery/|t/[^/]+/)?([a-zA-Z0-9]{5,8})`)
 
 func IsImgurURL(rawURL string) bool {
-	t := strings.TrimSpace(rawURL)
-	return imgurRegex.MatchString(t) && !strings.Contains(t, "i.imgur.com")
+	return imgurRegex.MatchString(strings.TrimSpace(rawURL))
 }
 
 func ProbeImgurAlbum(ctx context.Context, rawURL string) (*ArchivePost, error) {

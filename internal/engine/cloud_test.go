@@ -17,6 +17,10 @@ func TestIsCloudHostURL(t *testing.T) {
 		{"https://litterbox.catbox.moe/xyz.zip", true},
 		{"https://www.mediafire.com/file/o8t0c3k8n9u503o/sample.txt/file", true},
 		{"https://youtube.com/watch?v=123", false},
+		{"https://evil.com/?u=https://pixeldrain.com/u/abc12345", false},
+		{"https://evil.com/?u=https://drive.google.com/file/d/1A2B3C4D5E/view", false},
+		{"https://evil.com/?u=https://mediafire.com/file/abc123", false},
+		{"https://evil.com/catbox.moe/abc.mp4", false},
 	}
 
 	for _, tt := range tests {

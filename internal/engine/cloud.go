@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	gdriveRegex         = regexp.MustCompile(`(?i)drive\.google\.com/(?:file/d/|open\?id=|uc\?(?:[^&]+&)*id=)([a-zA-Z0-9_-]+)`)
-	pixeldrainRegex     = regexp.MustCompile(`(?i)pixeldrain\.com/u/([a-zA-Z0-9_-]+)`)
-	pixeldrainListRegex = regexp.MustCompile(`(?i)pixeldrain\.com/l/([a-zA-Z0-9_-]+)`)
-	catboxRegex         = regexp.MustCompile(`(?i)(?:files\.)?catbox\.moe/|litterbox\.catbox\.moe/`)
-	mediafireRegex      = regexp.MustCompile(`(?i)mediafire\.com/file/([a-zA-Z0-9]+)`)
+	gdriveRegex         = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?drive\.google\.com/(?:file/d/|open\?id=|uc\?(?:[^&]+&)*id=)([a-zA-Z0-9_-]+)`)
+	pixeldrainRegex     = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?pixeldrain\.com/u/([a-zA-Z0-9_-]+)`)
+	pixeldrainListRegex = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?pixeldrain\.com/l/([a-zA-Z0-9_-]+)`)
+	catboxRegex         = regexp.MustCompile(`(?i)^(?:https?://)?(?:(?:files\.)?catbox\.moe/|litterbox\.catbox\.moe/)`)
+	mediafireRegex      = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?mediafire\.com/file/([a-zA-Z0-9]+)`)
 	mediafireLinkRegex  = regexp.MustCompile(`(?i)href="(https?://download\d+\.mediafire\.com/[^"]+)"`)
 )
 

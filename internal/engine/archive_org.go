@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var archiveOrgRegex = regexp.MustCompile(`(?i)archive\.org/details/([a-zA-Z0-9_\-\.]+)`)
+var archiveOrgRegex = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?archive\.org/details/([a-zA-Z0-9_\-\.]+)`)
 
 func IsArchiveOrgURL(rawURL string) bool {
 	return archiveOrgRegex.MatchString(strings.TrimSpace(rawURL))
