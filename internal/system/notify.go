@@ -3,9 +3,7 @@ package system
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -20,26 +18,7 @@ func SendNotification(title, message string) {
 		switch runtime.GOOS {
 		case "linux":
 			if bin, err := exec.LookPath("notify-send"); err == nil {
-				home, _ := os.UserHomeDir()
-				iconPaths := []string{
-					filepath.Join(home, ".local", "share", "icons", "hicolor", "256x256", "apps", "anpan.png"),
-					filepath.Join(home, ".local", "share", "pixmaps", "anpan.png"),
-					"/usr/share/icons/hicolor/256x256/apps/anpan.png",
-					"/usr/share/pixmaps/anpan.png",
-				}
-				icon := ""
-				for _, ip := range iconPaths {
-					if _, err := os.Stat(ip); err == nil {
-						icon = ip
-						break
-					}
-				}
-
-				args := []string{"-a", "anpan"}
-				if icon != "" {
-					args = append(args, "-i", icon)
-				}
-				args = append(args, title, message)
+				args := []string{"-a", "anpan", "-i", "anpan", title, message}
 				_ = exec.CommandContext(ctx, bin, args...).Run()
 			}
 

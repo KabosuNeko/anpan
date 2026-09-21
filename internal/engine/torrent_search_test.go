@@ -255,6 +255,3 @@ func TestParse1337xHTML(t *testing.T) {
 		t.Errorf("leetxSizeRegex failed: %v", sizeM)
 	}
 }
-
-
-

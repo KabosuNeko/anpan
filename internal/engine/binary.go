@@ -96,6 +96,13 @@ func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 		return "yt-dlp", nil
 	}
 
+	fallback := func(err error) (string, error) {
+		if hasSystemYtDlp {
+			return "yt-dlp", nil
+		}
+		return "", err
+	}
+
 	if onStatus != nil {
 		onStatus("fetching self-contained yt-dlp (bundled dependencies)…")
 	}
@@ -107,27 +114,18 @@ func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 	url := fmt.Sprintf("%s/%s", releaseBase, ytDlpAssetName())
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		if hasSystemYtDlp {
-			return "yt-dlp", nil
-		}
-		return "", err
+		return fallback(err)
 	}
 
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		if hasSystemYtDlp {
-			return "yt-dlp", nil
-		}
-		return "", fmt.Errorf("could not download standalone yt-dlp: %w", err)
+		return fallback(fmt.Errorf("could not download standalone yt-dlp: %w", err))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if hasSystemYtDlp {
-			return "yt-dlp", nil
-		}
-		return "", fmt.Errorf("download yt-dlp failed: %s", resp.Status)
+		return fallback(fmt.Errorf("download yt-dlp failed: %s", resp.Status))
 	}
 
 	tmpPath := localBin + ".download"
@@ -140,17 +138,11 @@ func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 	_ = out.Close()
 	if err != nil {
 		_ = os.Remove(tmpPath)
-		if hasSystemYtDlp {
-			return "yt-dlp", nil
-		}
-		return "", err
+		return fallback(err)
 	}
 
 	if err := safeReplaceBinary(tmpPath, localBin); err != nil {
-		if hasSystemYtDlp {
-			return "yt-dlp", nil
-		}
-		return "", err
+		return fallback(err)
 	}
 	_ = os.Chmod(localBin, 0o755)
 

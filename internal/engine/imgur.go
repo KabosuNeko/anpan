@@ -52,15 +52,11 @@ func ProbeImgurAlbum(ctx context.Context, rawURL string) (*ArchivePost, error) {
 
 	var res struct {
 		Success bool `json:"success"`
-		Status  int  `json:"status"`
 		Data    struct {
-			ID     string `json:"id"`
 			Title  string `json:"title"`
 			Images []struct {
 				ID    string `json:"id"`
 				Link  string `json:"link"`
-				Type  string `json:"type"`
-				Size  int64  `json:"size"`
 				Title string `json:"title"`
 			} `json:"images"`
 		} `json:"data"`
@@ -87,12 +83,6 @@ func ProbeImgurAlbum(ctx context.Context, rawURL string) (*ArchivePost, error) {
 			if e := filepath.Ext(u.Path); e != "" {
 				ext = e
 			}
-		} else if img.Type == "image/png" {
-			ext = ".png"
-		} else if img.Type == "image/gif" {
-			ext = ".gif"
-		} else if img.Type == "video/mp4" {
-			ext = ".mp4"
 		}
 
 		fn := fmt.Sprintf("%02d_%s%s", i+1, img.ID, ext)

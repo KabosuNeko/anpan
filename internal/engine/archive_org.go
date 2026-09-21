@@ -48,17 +48,12 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 	}
 
 	var res struct {
-		Server   string `json:"server"`
-		Dir      string `json:"dir"`
 		Metadata struct {
-			Title      string `json:"title"`
-			Identifier string `json:"identifier"`
+			Title string `json:"title"`
 		} `json:"metadata"`
 		Files []struct {
 			Name   string `json:"name"`
 			Format string `json:"format"`
-			Source string `json:"source"`
-			Size   string `json:"size"`
 		} `json:"files"`
 	}
 
@@ -75,37 +70,31 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		title = itemID
 	}
 
-	var files []ArchiveFile
-	for _, f := range res.Files {
-		// Ignore internal metadata files
-		if f.Format == "Metadata" || f.Format == "Item Tile" || strings.HasSuffix(f.Name, "_meta.xml") || strings.HasSuffix(f.Name, "_files.xml") {
-			continue
-		}
-		cleanName := strings.TrimPrefix(f.Name, "/")
-		if cleanName == "" {
-			continue
-		}
-
-		encodedPath := url.PathEscape(cleanName)
-		downloadURL := fmt.Sprintf("https://archive.org/download/%s/%s", itemID, encodedPath)
-
-		files = append(files, ArchiveFile{
-			Name: sanitizeFilename(cleanName),
-			URL:  downloadURL,
-		})
+	archiveFileURL := func(name string) string {
+		return fmt.Sprintf("https://archive.org/download/%s/%s", itemID, url.PathEscape(name))
 	}
 
-	if len(files) == 0 {
-		// If filtered everything, fallback to all files
+	buildFiles := func(skipInternal bool) []ArchiveFile {
+		var out []ArchiveFile
 		for _, f := range res.Files {
-			cleanName := strings.TrimPrefix(f.Name, "/")
-			if cleanName != "" {
-				files = append(files, ArchiveFile{
-					Name: sanitizeFilename(cleanName),
-					URL:  fmt.Sprintf("https://archive.org/download/%s/%s", itemID, url.PathEscape(cleanName)),
-				})
+			if skipInternal && (f.Format == "Metadata" || f.Format == "Item Tile" || strings.HasSuffix(f.Name, "_meta.xml") || strings.HasSuffix(f.Name, "_files.xml")) {
+				continue
 			}
+			cleanName := strings.TrimPrefix(f.Name, "/")
+			if cleanName == "" {
+				continue
+			}
+			out = append(out, ArchiveFile{
+				Name: sanitizeFilename(cleanName),
+				URL:  archiveFileURL(cleanName),
+			})
 		}
+		return out
+	}
+
+	files := buildFiles(true)
+	if len(files) == 0 {
+		files = buildFiles(false)
 	}
 
 	return &ArchivePost{

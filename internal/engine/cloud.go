@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -116,7 +117,6 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 
 	client := &http.Client{Timeout: 8 * time.Second}
 
-	// 1. Pixeldrain
 	if m := pixeldrainRegex.FindStringSubmatch(trimmed); len(m) > 1 {
 		id := m[1]
 		infoURL := fmt.Sprintf("https://pixeldrain.com/api/file/%s/info", id)
@@ -150,7 +150,6 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 		}, nil
 	}
 
-	// 2. Google Drive
 	if m := gdriveRegex.FindStringSubmatch(trimmed); len(m) > 1 {
 		id := m[1]
 		directURL := fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s&confirm=t", id)
@@ -160,14 +159,8 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 			if resp, err := client.Do(req); err == nil {
 				defer resp.Body.Close()
 				filename := ""
-				disp := resp.Header.Get("Content-Disposition")
-				if disp != "" {
-					if idx := strings.Index(disp, "filename="); idx != -1 {
-						fn := strings.Trim(disp[idx+9:], `"'; `)
-						if fn != "" {
-							filename = sanitizeFilename(fn)
-						}
-					}
+				if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil {
+					filename = sanitizeFilename(params["filename"])
 				}
 				if filename == "" {
 					filename = fmt.Sprintf("gdrive_%s", id)
@@ -190,7 +183,6 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 		}, nil
 	}
 
-	// 3. Catbox / Litterbox
 	if catboxRegex.MatchString(trimmed) {
 		u, err := url.Parse(trimmed)
 		filename := "catbox_file"
@@ -206,7 +198,6 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 		}, nil
 	}
 
-	// 4. MediaFire
 	if mediafireRegex.MatchString(trimmed) {
 		req, _ := http.NewRequestWithContext(reqCtx, "GET", trimmed, nil)
 		if req != nil {

@@ -7,23 +7,23 @@ import (
 )
 
 type AnpanConfig struct {
-	Aria2c         bool   `json:"aria2c"`
-	Connections    int    `json:"connections"`
-	AskSaveDir     bool   `json:"askSaveDir"`
-	OutDir         string `json:"outDir"`
-	PreferQuality  string `json:"preferQuality"`  // "ask" | "best" | "1080p" | "audio"
-	VideoContainer string `json:"videoContainer"` // "mp4" | "mkv" | "webm"
-	VideoCodec     string `json:"videoCodec"`     // "auto" | "av1" | "vp9" | "avc"
-	AudioFormat    string `json:"audioFormat"`    // "mp3" | "m4a" | "opus" | "flac" | "wav"
-	CookiesBrowser string `json:"cookiesBrowser"` // "none" | "chrome" | "firefox" | "brave" | "edge" | "safari"
-	Subtitles      string `json:"subtitles"`      // "off" | "embed" | "write"
-	SubLangs       string `json:"subLangs"`       // "vi,en" | "all" | "en"
-	SponsorBlock   string `json:"sponsorBlock"`   // "off" | "remove" | "mark"
-	EmbedMetadata  bool   `json:"embedMetadata"`
-	WriteThumbnail bool   `json:"writeThumbnail"`
+	Aria2c            bool   `json:"aria2c"`
+	Connections       int    `json:"connections"`
+	AskSaveDir        bool   `json:"askSaveDir"`
+	OutDir            string `json:"outDir"`
+	PreferQuality     string `json:"preferQuality"`  // "ask" | "best" | "1080p" | "audio"
+	VideoContainer    string `json:"videoContainer"` // "mp4" | "mkv" | "webm"
+	VideoCodec        string `json:"videoCodec"`     // "auto" | "av1" | "vp9" | "avc"
+	AudioFormat       string `json:"audioFormat"`    // "mp3" | "m4a" | "opus" | "flac" | "wav"
+	CookiesBrowser    string `json:"cookiesBrowser"` // "none" | "chrome" | "firefox" | "brave" | "edge" | "safari"
+	Subtitles         string `json:"subtitles"`      // "off" | "embed" | "write"
+	SubLangs          string `json:"subLangs"`       // "vi,en" | "all" | "en"
+	SponsorBlock      string `json:"sponsorBlock"`   // "off" | "remove" | "mark"
+	EmbedMetadata     bool   `json:"embedMetadata"`
+	WriteThumbnail    bool   `json:"writeThumbnail"`
 	Notifications     bool   `json:"notifications"`
-	SpeedLimit        string `json:"speedLimit"` // "unlimited" | "1M" | "5M" | "10M" | "20M" | "50M"
-	Lyrics            string `json:"lyrics"`     // "synced" | "off"
+	SpeedLimit        string `json:"speedLimit"`        // "unlimited" | "1M" | "5M" | "10M" | "20M" | "50M"
+	Lyrics            string `json:"lyrics"`            // "synced" | "off"
 	TorrentSeedRatio  string `json:"torrentSeedRatio"`  // "off" | "1.0" | "2.0" | "unlimited"
 	ColorTheme        string `json:"colorTheme"`        // "bakery" | "terminal"
 	DefaultSearchSort string `json:"defaultSearchSort"` // "seeds" | "size" | "size-asc" | "peers" | "name" | "source"
@@ -59,9 +59,13 @@ func DefaultConfig() AnpanConfig {
 	}
 }
 
-func configPath() string {
+func configDir() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "anpan", "config.json")
+	return filepath.Join(home, ".config", "anpan")
+}
+
+func configPath() string {
+	return filepath.Join(configDir(), "config.json")
 }
 
 func LoadConfig() AnpanConfig {
@@ -127,7 +131,7 @@ func LoadConfig() AnpanConfig {
 
 func SaveConfig(cfg AnpanConfig) error {
 	p := configPath()
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := os.MkdirAll(configDir(), 0o755); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")

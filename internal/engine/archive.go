@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"bufio"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -107,31 +104,8 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 		return nil, fmt.Errorf("archive api returned %s", resp.Status)
 	}
 
-	var reader io.Reader = resp.Body
-	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
-		gzReader, err := gzip.NewReader(resp.Body)
-		if err == nil {
-			defer gzReader.Close()
-			reader = gzReader
-		}
-	} else {
-		buf := bufio.NewReader(resp.Body)
-		peek, _ := buf.Peek(2)
-		if len(peek) == 2 && peek[0] == 0x1f && peek[1] == 0x8b {
-			gzReader, err := gzip.NewReader(buf)
-			if err == nil {
-				defer gzReader.Close()
-				reader = gzReader
-			} else {
-				reader = buf
-			}
-		} else {
-			reader = buf
-		}
-	}
-
 	var rawData map[string]any
-	if err := json.NewDecoder(reader).Decode(&rawData); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&rawData); err != nil {
 		return nil, err
 	}
 

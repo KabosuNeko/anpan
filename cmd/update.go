@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/KabosuNeko/anpan/internal/system"
 	"github.com/spf13/cobra"
@@ -32,30 +31,18 @@ var updateCmd = &cobra.Command{
 
 		fmt.Printf("→ New version available: %s → v%s\n", Version, res.LatestVersion)
 
-		execPath, err := os.Executable()
+		execPath, err := currentExecutable()
 		if err != nil {
-			return fmt.Errorf("cannot locate current binary: %w", err)
-		}
-		execPath, err = filepath.EvalSymlinks(execPath)
-		if err != nil {
-			return fmt.Errorf("cannot resolve symlink: %w", err)
+			return err
 		}
 
-		// Detect if installed via package manager (e.g. Arch Linux AUR / pacman)
-		if runtime.GOOS == "linux" && (strings.HasPrefix(execPath, "/usr/bin/") || strings.HasPrefix(execPath, "/usr/local/bin/")) {
-			if _, pErr := exec.LookPath("pacman"); pErr == nil {
-				// Check if owned by pacman package
-				checkCmd := exec.Command("pacman", "-Qo", execPath)
-				if err := checkCmd.Run(); err == nil {
-					fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
-					fmt.Println("→ Please update using your AUR helper:")
-					fmt.Println("   yay -Syu --devel   (or paru -Syu --devel)")
-					return nil
-				}
-			}
+		if pacmanOwned(execPath) {
+			fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
+			fmt.Println("→ Please update using your AUR helper:")
+			fmt.Println("   yay -Syu --devel   (or paru -Syu --devel)")
+			return nil
 		}
 
-		// Platform asset
 		osName := runtime.GOOS
 		archName := runtime.GOARCH
 
@@ -73,8 +60,11 @@ var updateCmd = &cobra.Command{
 		}
 		req.Header.Set("User-Agent", "anpan/"+Version)
 		resp, err := http.DefaultClient.Do(req)
-		if err != nil || resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("download failed (HTTP %d). Please install manually via install script.", resp.StatusCode)
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("download failed (HTTP %d), please install manually via install script", resp.StatusCode)
 		}
 		defer resp.Body.Close()
 
@@ -96,27 +86,20 @@ var updateCmd = &cobra.Command{
 		}
 		defer os.RemoveAll(tmpExtract)
 
-		if strings.HasSuffix(assetExt, ".tar.gz") {
+		if osName == "windows" {
+			psCmd := exec.Command("powershell", "-Command", fmt.Sprintf("Expand-Archive -Path '%s' -DestinationPath '%s' -Force", tmpArchive.Name(), tmpExtract))
+			if err := psCmd.Run(); err != nil {
+				return fmt.Errorf("powershell unzip failed: %w", err)
+			}
+		} else {
 			tarCmd := exec.Command("tar", "-xzf", tmpArchive.Name(), "-C", tmpExtract)
 			if err := tarCmd.Run(); err != nil {
 				return fmt.Errorf("tar extract failed: %w", err)
 			}
-		} else if strings.HasSuffix(assetExt, ".zip") {
-			if runtime.GOOS == "windows" {
-				psCmd := exec.Command("powershell", "-Command", fmt.Sprintf("Expand-Archive -Path '%s' -DestinationPath '%s' -Force", tmpArchive.Name(), tmpExtract))
-				if err := psCmd.Run(); err != nil {
-					return fmt.Errorf("powershell unzip failed: %w", err)
-				}
-			} else {
-				unzipCmd := exec.Command("unzip", "-o", tmpArchive.Name(), "-d", tmpExtract)
-				if err := unzipCmd.Run(); err != nil {
-					return fmt.Errorf("unzip failed: %w", err)
-				}
-			}
 		}
 
 		extractedBin := filepath.Join(tmpExtract, "anpan")
-		if runtime.GOOS == "windows" {
+		if osName == "windows" {
 			extractedBin += ".exe"
 		}
 
@@ -124,7 +107,6 @@ var updateCmd = &cobra.Command{
 			return fmt.Errorf("binary not found in archive: %w", err)
 		}
 
-		// Replace current executable
 		oldPath := execPath + ".old"
 		_ = os.Remove(oldPath)
 		_ = os.Rename(execPath, oldPath)

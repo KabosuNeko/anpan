@@ -10,9 +10,9 @@ func TestRootCmdFlags(t *testing.T) {
 		t.Errorf("unexpected Use: %s", rootCmd.Use)
 	}
 
-	oFlag := rootCmd.Flags().Lookup("output")
-	if oFlag == nil || oFlag.Shorthand != "o" {
-		t.Errorf("expected -o/--output flag")
+	outDirFlag := rootCmd.Flags().Lookup("out-dir")
+	if outDirFlag == nil || outDirFlag.Shorthand != "o" {
+		t.Errorf("expected -o/--out-dir flag")
 	}
 
 	iFlag := rootCmd.Flags().Lookup("input")
@@ -23,11 +23,6 @@ func TestRootCmdFlags(t *testing.T) {
 	fFlag := rootCmd.Flags().Lookup("file")
 	if fFlag == nil || fFlag.Shorthand != "f" {
 		t.Errorf("expected -f/--file flag")
-	}
-
-	outDirFlag := rootCmd.Flags().Lookup("out-dir")
-	if outDirFlag == nil {
-		t.Errorf("expected --out-dir flag")
 	}
 
 	buf := new(bytes.Buffer)
@@ -62,7 +57,5 @@ func TestUpdateCmdExecution(t *testing.T) {
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
 	rootCmd.SetArgs([]string{"update"})
-	// Running update command in test environment:
-	// If already on latest version, should return without error.
 	_ = rootCmd.Execute()
 }

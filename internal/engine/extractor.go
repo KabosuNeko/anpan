@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -105,11 +107,10 @@ func ProbeVideo(ctx context.Context, ytdlpBin string, rawURL string) (*ProbeResu
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tmpFile.Write(out); err != nil {
-		_ = tmpFile.Close()
+	_ = tmpFile.Close()
+	if err := os.WriteFile(tmpFile.Name(), out, 0o644); err != nil {
 		return nil, err
 	}
-	_ = tmpFile.Close()
 
 	return &ProbeResult{
 		Meta:           meta,
@@ -151,14 +152,18 @@ func scoreStream(s RawStream, preferredContainer string, preferredCodec string) 
 	return score
 }
 
-func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
-	streams := meta.Formats
-	var portions []Portion
+// estimateBytes converts a bitrate in kbps and a duration in seconds to an estimated byte count.
+func estimateBytes(rateKbps float64, duration *float64) *float64 {
+	if duration == nil {
+		return nil
+	}
+	bytes := math.Round(((rateKbps * 1000) / 8) * (*duration))
+	return &bytes
+}
 
-	container := "mp4"
-	audioFmt := "mp3"
-	codec := "auto"
-	embedMetadata := true
+// extractPortionOptions applies defaults for the portion extraction options.
+func extractPortionOptions(opts *ExtractPortionsOptions) (container, audioFmt, codec string, embedMetadata bool) {
+	container, audioFmt, codec, embedMetadata = "mp4", "mp3", "auto", true
 	if opts != nil {
 		if opts.VideoContainer != "" {
 			container = opts.VideoContainer
@@ -173,6 +178,14 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			embedMetadata = *opts.EmbedMetadata
 		}
 	}
+	return
+}
+
+func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
+	streams := meta.Formats
+	var portions []Portion
+
+	container, audioFmt, codec, embedMetadata := extractPortionOptions(opts)
 
 	var audioStreams []RawStream
 	for _, s := range streams {
@@ -218,8 +231,7 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			} else if bestAudio.TBR != nil {
 				rate = *bestAudio.TBR
 			}
-			calc := math.Round(((rate * 1000) / 8) * (*meta.Duration))
-			audioSize = &calc
+			audioSize = estimateBytes(rate, meta.Duration)
 		}
 	}
 
@@ -236,12 +248,8 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 		}
 	}
 
-	var heights []int
-	for h := range heightMap {
-		heights = append(heights, h)
-	}
-	sort.Slice(heights, func(i, j int) bool {
-		return heights[i] > heights[j]
+	var heights = slices.SortedFunc(maps.Keys(heightMap), func(a, b int) int {
+		return b - a
 	})
 
 	for _, height := range heights {
@@ -277,8 +285,7 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 					rate += *best.ABR
 				}
 			}
-			calc := math.Round(((rate * 1000) / 8) * (*meta.Duration))
-			videoBytes = &calc
+			videoBytes = estimateBytes(rate, meta.Duration)
 		}
 
 		estimatedSize := float64(0)
@@ -382,15 +389,8 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			orderedKeys = append(orderedKeys, pk)
 		}
 	}
-	for k := range nativeAudioMap {
-		found := false
-		for _, pk := range priorityKeys {
-			if pk == k {
-				found = true
-				break
-			}
-		}
-		if !found {
+	for _, k := range slices.Sorted(maps.Keys(nativeAudioMap)) {
+		if !slices.Contains(priorityKeys, k) {
 			orderedKeys = append(orderedKeys, k)
 		}
 	}
@@ -409,8 +409,7 @@ func ExtractPortions(meta VideoMeta, opts *ExtractPortionsOptions) []Portion {
 			} else if stream.TBR != nil {
 				rate = *stream.TBR
 			}
-			calc := math.Round(((rate * 1000) / 8) * (*meta.Duration))
-			bytes = &calc
+			bytes = estimateBytes(rate, meta.Duration)
 		}
 
 		sizeTag := ""
@@ -567,24 +566,7 @@ func ProbePlaylist(ctx context.Context, ytdlpBin string, rawURL string) (*Playli
 }
 
 func ExtractPlaylistPortions(opts *ExtractPortionsOptions) []Portion {
-	container := "mp4"
-	audioFmt := "mp3"
-	codec := "auto"
-	embedMetadata := true
-	if opts != nil {
-		if opts.VideoContainer != "" {
-			container = opts.VideoContainer
-		}
-		if opts.AudioFormat != "" {
-			audioFmt = opts.AudioFormat
-		}
-		if opts.VideoCodec != "" {
-			codec = opts.VideoCodec
-		}
-		if opts.EmbedMetadata != nil {
-			embedMetadata = *opts.EmbedMetadata
-		}
-	}
+	container, audioFmt, codec, embedMetadata := extractPortionOptions(opts)
 
 	audioArgs := []string{"-f", "ba/b", "-x", "--audio-format", audioFmt, "--audio-quality", "0"}
 	if embedMetadata {

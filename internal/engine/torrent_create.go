@@ -25,10 +25,8 @@ type CreatedTorrent struct {
 
 // TorrentCreateOptions specifies options for generating a .torrent file.
 type TorrentCreateOptions struct {
-	Comment       string
-	Trackers      []string
-	PieceLength   int64 // 0 for auto
-	OutPath       string
+	Comment  string
+	Trackers []string
 }
 
 // CreateTorrent turns a local file or directory into a .torrent file and returns its metadata.
@@ -99,19 +97,13 @@ func CreateTorrent(sourcePath string, outPath string, opts *TorrentCreateOptions
 		})
 	}
 
-	// Calculate optimal piece length if not specified
-	pieceLength := opts.PieceLength
-	if pieceLength <= 0 {
-		pieceLength = calculateOptimalPieceLength(totalBytes)
-	}
+	pieceLength := calculateOptimalPieceLength(totalBytes)
 
-	// Compute piece hashes
 	piecesConcat, pieceCount, err := hashPieces(fileEntries, pieceLength)
 	if err != nil {
 		return nil, fmt.Errorf("hash pieces: %w", err)
 	}
 
-	// Build bencode Info Dictionary
 	infoDict := make(map[string]interface{})
 	infoDict["name"] = fi.Name()
 	infoDict["piece length"] = pieceLength
@@ -134,14 +126,12 @@ func CreateTorrent(sourcePath string, outPath string, opts *TorrentCreateOptions
 		infoDict["length"] = totalBytes
 	}
 
-	// Bencode Info Dictionary to calculate InfoHash
 	infoBencoded := bencodeDict(infoDict)
 	h := sha1.New()
 	h.Write(infoBencoded)
 	infoHashBytes := h.Sum(nil)
 	infoHashHex := hex.EncodeToString(infoHashBytes)
 
-	// Build root dictionary
 	rootDict := make(map[string]interface{})
 	rootDict["announce"] = trackers[0]
 
@@ -160,7 +150,6 @@ func CreateTorrent(sourcePath string, outPath string, opts *TorrentCreateOptions
 
 	rootBencoded := bencodeDict(rootDict)
 
-	// Target torrent path
 	destTorrentPath := outPath
 	if destTorrentPath == "" {
 		destTorrentPath = absPath + ".torrent"
@@ -246,7 +235,6 @@ func hashPieces(files []fileMeta, pieceLength int64) ([]byte, int, error) {
 		file.Close()
 	}
 
-	// Final partial piece
 	if currentPieceWritten > 0 {
 		piecesBuf.Write(h.Sum(nil))
 		pieceCount++

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/KabosuNeko/anpan/internal/units"
 )
 
 func FindAria2c() (string, error) {
@@ -28,12 +30,7 @@ func BuildAria2cArgs(aria2cPath string, connections int) []string {
 	if aria2cPath == "" {
 		return nil
 	}
-	c := connections
-	if c < 1 {
-		c = 1
-	} else if c > 32 {
-		c = 32
-	}
+	c := min(max(connections, 1), 32)
 	return []string{
 		"--downloader", "aria2c",
 		"--downloader-args", fmt.Sprintf("aria2c:-x %d -s %d -k 1M -j %d", c, c, c),
@@ -49,54 +46,13 @@ type AriaProgress struct {
 	Seeders         *int
 }
 
-var unitBytesRegex = regexp.MustCompile(`^([0-9.]+)\s*([A-Za-z]+)?$`)
-
-func ParseUnitBytes(str string) float64 {
-	match := unitBytesRegex.FindStringSubmatch(strings.TrimSpace(str))
-	if match == nil {
-		return 0
-	}
-	val, err := strconv.ParseFloat(match[1], 64)
-	if err != nil {
-		return 0
-	}
-	unit := strings.ToLower(match[2])
-	if strings.HasPrefix(unit, "g") {
-		return math.Round(val * 1024 * 1024 * 1024)
-	}
-	if strings.HasPrefix(unit, "m") {
-		return math.Round(val * 1024 * 1024)
-	}
-	if strings.HasPrefix(unit, "k") {
-		return math.Round(val * 1024)
-	}
-	return math.Round(val)
-}
-
-var (
-	ariaHoursRegex   = regexp.MustCompile(`(\d+)h`)
-	ariaMinutesRegex = regexp.MustCompile(`(\d+)m`)
-	ariaSecondsRegex = regexp.MustCompile(`(\d+)s`)
-)
-
 func ParseAriaEta(etaStr string) *float64 {
-	var seconds float64
-	if m := ariaHoursRegex.FindStringSubmatch(etaStr); m != nil {
-		h, _ := strconv.ParseFloat(m[1], 64)
-		seconds += h * 3600
+	d, err := time.ParseDuration(etaStr)
+	if err != nil || d <= 0 {
+		return nil
 	}
-	if m := ariaMinutesRegex.FindStringSubmatch(etaStr); m != nil {
-		min, _ := strconv.ParseFloat(m[1], 64)
-		seconds += min * 60
-	}
-	if m := ariaSecondsRegex.FindStringSubmatch(etaStr); m != nil {
-		sec, _ := strconv.ParseFloat(m[1], 64)
-		seconds += sec
-	}
-	if seconds > 0 {
-		return &seconds
-	}
-	return nil
+	seconds := d.Seconds()
+	return &seconds
 }
 
 var (
@@ -114,8 +70,8 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 		return nil
 	}
 
-	downloadedBytes := ParseUnitBytes(headerMatch[1])
-	totalBytesVal := ParseUnitBytes(headerMatch[2])
+	downloadedBytes := float64(units.ParseBytes(headerMatch[1]))
+	totalBytesVal := float64(units.ParseBytes(headerMatch[2]))
 	var totalBytes *float64
 	if totalBytesVal > 0 {
 		totalBytes = &totalBytesVal
@@ -137,10 +93,10 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 
 	speed := float64(0)
 	if dlMatch := ariaDLRegex.FindStringSubmatch(line); dlMatch != nil {
-		speed = ParseUnitBytes(dlMatch[1])
+		speed = float64(units.ParseBytes(dlMatch[1]))
 	}
 	if ulMatch := ariaULRegex.FindStringSubmatch(line); ulMatch != nil {
-		ulSpeed := ParseUnitBytes(ulMatch[1])
+		ulSpeed := float64(units.ParseBytes(ulMatch[1]))
 		if ulSpeed > 0 && speed == 0 {
 			speed = ulSpeed
 		}
@@ -173,15 +129,15 @@ type DirectDownloadOptions struct {
 	SpeedLimit  string
 }
 
-func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handlers BakeHandlers) (string, error) {
-	c := opts.Connections
+// directArgs builds the shared aria2c argument list for direct and batch downloads.
+func directArgs(outputDir string, connections int, extra ...string) []string {
+	c := connections
 	if c < 1 {
 		c = 16
-	} else if c > 32 {
-		c = 32
 	}
-	args := []string{
-		"-d", opts.OutputDir,
+	c = min(c, 32)
+	args := append([]string{"-d", outputDir}, extra...)
+	return append(args,
 		"-x", strconv.Itoa(c),
 		"-s", strconv.Itoa(c),
 		"-k", "1M",
@@ -193,7 +149,11 @@ func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handler
 		"--summary-interval=1",
 		"--auto-file-renaming=false",
 		"--allow-overwrite=true",
-	}
+	)
+}
+
+func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handlers BakeHandlers) (string, error) {
+	args := directArgs(opts.OutputDir, opts.Connections)
 	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
@@ -255,8 +215,8 @@ func BakeTorrentSeed(ctx context.Context, opts TorrentSeedOptions, handlers Bake
 	if opts.UploadLimit != "" && opts.UploadLimit != "unlimited" {
 		args = append(args, fmt.Sprintf("--max-upload-limit=%s", opts.UploadLimit))
 	}
-	for _, tr := range DefaultPublicTrackers {
-		args = append(args, fmt.Sprintf("--bt-tracker=%s", tr))
+	if len(DefaultPublicTrackers) > 0 {
+		args = append(args, "--bt-tracker="+strings.Join(DefaultPublicTrackers, ","))
 	}
 	args = append(args, opts.TorrentPath)
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
@@ -266,7 +226,6 @@ type BatchItem struct {
 	URL      string   `json:"url"`
 	Mirrors  []string `json:"mirrors,omitempty"`
 	Filename string   `json:"filename,omitempty"`
-	Name     string   `json:"name,omitempty"`
 	Headers  []string `json:"headers,omitempty"`
 }
 
@@ -279,13 +238,6 @@ type BatchDownloadOptions struct {
 }
 
 func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers BakeHandlers) (string, error) {
-	c := opts.Connections
-	if c < 1 {
-		c = 16
-	} else if c > 32 {
-		c = 32
-	}
-
 	tmpFile, err := os.CreateTemp("", "anpan-batch-*.txt")
 	if err != nil {
 		return "", err
@@ -299,12 +251,8 @@ func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers 
 			uris = strings.Join(item.Mirrors, "\t")
 		}
 		sb.WriteString(fmt.Sprintf("%s\n", uris))
-		out := item.Filename
-		if out == "" {
-			out = item.Name
-		}
-		if out != "" {
-			sb.WriteString(fmt.Sprintf("  out=%s\n", out))
+		if item.Filename != "" {
+			sb.WriteString(fmt.Sprintf("  out=%s\n", item.Filename))
 		}
 		for _, h := range item.Headers {
 			sb.WriteString(fmt.Sprintf("  header=%s\n", h))
@@ -315,21 +263,7 @@ func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers 
 	}
 	tmpFile.Close()
 
-	args := []string{
-		"-d", opts.OutputDir,
-		"-i", tmpFile.Name(),
-		"-x", strconv.Itoa(c),
-		"-s", strconv.Itoa(c),
-		"-k", "1M",
-		"-j", strconv.Itoa(c),
-		"--connect-timeout=6",
-		"--timeout=10",
-		"--max-tries=2",
-		"--retry-wait=1",
-		"--summary-interval=1",
-		"--auto-file-renaming=false",
-		"--allow-overwrite=true",
-	}
+	args := directArgs(opts.OutputDir, opts.Connections, "-i", tmpFile.Name())
 	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}

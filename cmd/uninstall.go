@@ -21,26 +21,16 @@ var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Uninstall anpan and optionally remove all configs and cache",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		execPath, err := os.Executable()
+		execPath, err := currentExecutable()
 		if err != nil {
-			return fmt.Errorf("cannot locate current binary: %w", err)
-		}
-		execPath, err = filepath.EvalSymlinks(execPath)
-		if err != nil {
-			return fmt.Errorf("cannot resolve symlink: %w", err)
+			return err
 		}
 
-		// Detect if installed via package manager (e.g. Arch Linux AUR / pacman)
-		if runtime.GOOS == "linux" && (strings.HasPrefix(execPath, "/usr/bin/") || strings.HasPrefix(execPath, "/usr/local/bin/")) {
-			if _, pErr := exec.LookPath("pacman"); pErr == nil {
-				checkCmd := exec.Command("pacman", "-Qo", execPath)
-				if err := checkCmd.Run(); err == nil {
-					fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
-					fmt.Println("→ Please uninstall using your package manager or AUR helper:")
-					fmt.Println("   yay -R anpan-git    (or paru -R anpan-git / sudo pacman -R anpan-git)")
-					return nil
-				}
-			}
+		if pacmanOwned(execPath) {
+			fmt.Println("✦ anpan was installed via package manager (Arch Linux / AUR).")
+			fmt.Println("→ Please uninstall using your package manager or AUR helper:")
+			fmt.Println("   yay -R anpan-git    (or paru -R anpan-git / sudo pacman -R anpan-git)")
+			return nil
 		}
 
 		if !yesUninstall {
@@ -58,7 +48,6 @@ var uninstallCmd = &cobra.Command{
 			}
 		}
 
-		// Remove binary
 		if err := os.Remove(execPath); err != nil {
 			return fmt.Errorf("failed to remove binary %s (try running with sudo?): %w", execPath, err)
 		}
@@ -68,7 +57,6 @@ var uninstallCmd = &cobra.Command{
 		anpanBinDir := filepath.Join(home, ".anpan")
 		configDir := filepath.Join(home, ".config", "anpan")
 
-		// Remove desktop entry & icon on Linux
 		if runtime.GOOS == "linux" {
 			desktopFile := filepath.Join(home, ".local", "share", "applications", "anpan.desktop")
 			iconFile := filepath.Join(home, ".local", "share", "icons", "hicolor", "256x256", "apps", "anpan.png")

@@ -87,4 +87,3 @@ func TestRenderFooterHintsSingleLine(t *testing.T) {
 		t.Errorf("Tier 2 hints width %d exceeds 36", lipgloss.Width(rTier2))
 	}
 }
-

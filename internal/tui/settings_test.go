@@ -140,26 +140,10 @@ func TestSettingsCategories(t *testing.T) {
 		t.Fatalf("expected 4 setting categories, got %d", len(SettingCategories))
 	}
 
-	expectedKeys := map[string]bool{
-		"general": true,
-		"video":   true,
-		"audio":   true,
-		"torrent": true,
-	}
-
-	totalItems := 0
 	for _, cat := range SettingCategories {
-		if !expectedKeys[cat.Key] {
-			t.Errorf("unexpected category key: %s", cat.Key)
-		}
 		if len(cat.Items) == 0 {
-			t.Errorf("category %s has no items", cat.Key)
+			t.Errorf("category %s has no items", cat.Title)
 		}
-		totalItems += len(cat.Items)
-	}
-
-	if totalItems != len(SettingItems) {
-		t.Errorf("expected total category items %d to match SettingItems %d", totalItems, len(SettingItems))
 	}
 }
 

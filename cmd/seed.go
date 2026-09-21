@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/KabosuNeko/anpan/internal/engine"
 	"github.com/KabosuNeko/anpan/internal/system"
@@ -83,16 +80,8 @@ Examples:
 
 			fmt.Println("✦ Starting active P2P seeding with aria2c… (Press Ctrl+C to stop)")
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := signalContext("\n✦ Stopping seeder…")
 			defer cancel()
-
-			sigChan := make(chan os.Signal, 1)
-			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-			go func() {
-				<-sigChan
-				fmt.Println("\n✦ Stopping seeder…")
-				cancel()
-			}()
 
 			seedDir := filepath.Dir(sourcePath)
 			_, bakeErr := engine.BakeTorrentSeed(ctx, engine.TorrentSeedOptions{

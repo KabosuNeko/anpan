@@ -5,7 +5,6 @@ import (
 )
 
 func TestIsNewerVersion(t *testing.T) {
-	// Major bump
 	if !IsNewerVersion("1.0.0", "0.9.9") {
 		t.Errorf("expected 1.0.0 > 0.9.9")
 	}
@@ -13,7 +12,6 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Errorf("expected 0.9.9 not > 1.0.0")
 	}
 
-	// Minor bump
 	if !IsNewerVersion("0.2.0", "0.1.0") {
 		t.Errorf("expected 0.2.0 > 0.1.0")
 	}
@@ -21,7 +19,6 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Errorf("expected 0.1.0 not > 0.2.0")
 	}
 
-	// Patch bump
 	if !IsNewerVersion("0.1.1", "0.1.0") {
 		t.Errorf("expected 0.1.1 > 0.1.0")
 	}
@@ -29,7 +26,6 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Errorf("expected 0.1.0 not > 0.1.1")
 	}
 
-	// Equal versions
 	if IsNewerVersion("0.1.0", "0.1.0") {
 		t.Errorf("expected equal versions to return false")
 	}
@@ -37,7 +33,6 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Errorf("expected equal versions to return false")
 	}
 
-	// Handles 'v' prefix
 	if !IsNewerVersion("v0.2.0", "0.1.0") {
 		t.Errorf("expected v0.2.0 > 0.1.0")
 	}
@@ -48,7 +43,6 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Errorf("expected equal versions to return false")
 	}
 
-	// Two-digit parts
 	if !IsNewerVersion("0.10.0", "0.9.0") {
 		t.Errorf("expected 0.10.0 > 0.9.0")
 	}

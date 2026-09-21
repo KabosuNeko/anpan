@@ -4,7 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/KabosuNeko/anpan/internal/system"
@@ -56,43 +61,43 @@ Examples:
 				}
 			}
 
-			if len(targets) <= 1 {
-				initialURL := ""
-				if len(targets) == 1 {
-					initialURL = targets[0]
+			if len(targets) == 0 {
+				targets = []string{""}
+			}
+
+			total := len(targets)
+			batch := total > 1
+			if batch {
+				fmt.Printf("anpan — batch queue (%d items)\n", total)
+			}
+
+			for i, target := range targets {
+				if batch {
+					fmt.Printf("\n[%d/%d] → %s\n", i+1, total, target)
 				}
 
-				model := tui.NewModel(Version, initialURL, outputDir)
+				model := tui.NewModel(Version, target, outputDir)
 				p := tea.NewProgram(model)
 				model.SetProgram(p)
 
 				finalModel, err := p.Run()
 				if err != nil {
-					return err
+					if !batch {
+						return err
+					}
+					fmt.Printf("✗ failed: %v\n", err)
+					continue
 				}
-
 				if m, ok := finalModel.(tui.Model); ok && m.FinalPath != "" {
-					fmt.Printf("done → %s\n", m.FinalPath)
-				}
-			} else {
-				// Batch mode
-				total := len(targets)
-				fmt.Printf("anpan — batch queue (%d items)\n", total)
-				for i, target := range targets {
-					fmt.Printf("\n[%d/%d] → %s\n", i+1, total, target)
-					model := tui.NewModel(Version, target, outputDir)
-					p := tea.NewProgram(model)
-					model.SetProgram(p)
-
-					finalModel, err := p.Run()
-					if err != nil {
-						fmt.Printf("✗ failed: %v\n", err)
-						continue
-					}
-					if m, ok := finalModel.(tui.Model); ok && m.FinalPath != "" {
+					if batch {
 						fmt.Printf("✓ done → %s\n", m.FinalPath)
+					} else {
+						fmt.Printf("done → %s\n", m.FinalPath)
 					}
 				}
+			}
+
+			if batch {
 				fmt.Printf("\n✓ batch queue completed (%d items)\n", total)
 			}
 
@@ -107,8 +112,7 @@ Examples:
 )
 
 func init() {
-	rootCmd.Flags().StringVarP(&outputDir, "output", "o", "", "specify download output directory")
-	rootCmd.Flags().StringVar(&outputDir, "out-dir", "", "specify download output directory")
+	rootCmd.Flags().StringVarP(&outputDir, "out-dir", "o", "", "specify download output directory")
 	rootCmd.Flags().StringVarP(&inputFile, "input", "i", "", "batch download from a text file (one URL per line)")
 	rootCmd.Flags().StringVarP(&inputFile, "file", "f", "", "batch download from a text file (alias for -i)")
 	rootCmd.Version = Version
@@ -118,4 +122,42 @@ func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+// currentExecutable returns the resolved path of the running binary.
+func currentExecutable() (string, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("cannot locate current binary: %w", err)
+	}
+	execPath, err = filepath.EvalSymlinks(execPath)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve symlink: %w", err)
+	}
+	return execPath, nil
+}
+
+// pacmanOwned reports whether execPath is a system binary owned by a pacman package.
+func pacmanOwned(execPath string) bool {
+	if runtime.GOOS != "linux" ||
+		(!strings.HasPrefix(execPath, "/usr/bin/") && !strings.HasPrefix(execPath, "/usr/local/bin/")) {
+		return false
+	}
+	if _, err := exec.LookPath("pacman"); err != nil {
+		return false
+	}
+	return exec.Command("pacman", "-Qo", execPath).Run() == nil
+}
+
+// signalContext returns a context cancelled on SIGINT/SIGTERM, after printing msg.
+func signalContext(msg string) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println(msg)
+		cancel()
+	}()
+	return ctx, cancel
 }

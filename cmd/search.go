@@ -90,7 +90,6 @@ Examples:
 			fmt.Println(strings.Repeat("─", 94))
 			fmt.Println()
 
-			// Interactive download prompt if terminal
 			fmt.Print("Select number to download [1-", len(results), "] (or 'q' to quit, 'y <num>' to copy magnet): ")
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n')

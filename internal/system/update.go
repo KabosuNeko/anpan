@@ -19,7 +19,6 @@ const (
 type UpdateCheckResult struct {
 	UpdateAvailable bool   `json:"updateAvailable"`
 	LatestVersion   string `json:"latestVersion"`
-	CurrentVersion  string `json:"currentVersion"`
 }
 
 type updateCache struct {
@@ -28,8 +27,7 @@ type updateCache struct {
 }
 
 func cacheFilePath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "anpan", "update-cache.json")
+	return filepath.Join(configDir(), "update-cache.json")
 }
 
 func parseSemver(v string) (int, int, int) {
@@ -81,15 +79,11 @@ func writeCache(latestVersion string) {
 }
 
 type CheckUpdateOptions struct {
-	Force     bool
-	TimeoutMs int
+	Force bool
 }
 
 func CheckUpdate(ctx context.Context, currentVersion string, opts *CheckUpdateOptions) *UpdateCheckResult {
 	timeout := 1500 * time.Millisecond
-	if opts != nil && opts.TimeoutMs > 0 {
-		timeout = time.Duration(opts.TimeoutMs) * time.Millisecond
-	}
 
 	force := opts != nil && opts.Force
 	now := time.Now().UnixMilli()
@@ -100,7 +94,6 @@ func CheckUpdate(ctx context.Context, currentVersion string, opts *CheckUpdateOp
 				return &UpdateCheckResult{
 					UpdateAvailable: IsNewerVersion(c.LatestVersion, currentVersion),
 					LatestVersion:   c.LatestVersion,
-					CurrentVersion:  currentVersion,
 				}
 			}
 		}
@@ -123,7 +116,6 @@ func CheckUpdate(ctx context.Context, currentVersion string, opts *CheckUpdateOp
 			return &UpdateCheckResult{
 				UpdateAvailable: IsNewerVersion(c.LatestVersion, currentVersion),
 				LatestVersion:   c.LatestVersion,
-				CurrentVersion:  currentVersion,
 			}
 		}
 		return nil
@@ -147,6 +139,5 @@ func CheckUpdate(ctx context.Context, currentVersion string, opts *CheckUpdateOp
 	return &UpdateCheckResult{
 		UpdateAvailable: IsNewerVersion(latest, currentVersion),
 		LatestVersion:   latest,
-		CurrentVersion:  currentVersion,
 	}
 }
