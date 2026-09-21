@@ -102,39 +102,11 @@ Press `Ctrl+S` from the main screen or results to open the 4-tab compact configu
 
 ---
 
-## 2. Configuration File Schema
+## 2. Configuration File
 
 Path: `~/.config/anpan/config.json`
 
-```json
-{
-  "askSaveDir": true,
-  "outDir": "/home/user/Downloads",
-  "colorTheme": "bakery",
-  "notifications": true,
-  "autoPaste": false,
-  "speedLimit": "unlimited",
-
-  "videoContainer": "mp4",
-  "videoCodec": "auto",
-  "preferQuality": "ask",
-  "subtitles": "off",
-  "subLangs": "vi,en",
-  "sponsorBlock": "off",
-  "cookiesBrowser": "none",
-
-  "audioFormat": "mp3",
-  "embedMetadata": true,
-  "lyrics": "synced",
-  "writeThumbnail": false,
-
-  "aria2c": true,
-  "connections": 16,
-  "torrentSeedRatio": "off",
-  "defaultSearchCat": "all",
-  "defaultSearchSort": "seeds"
-}
-```
+Anpan writes a JSON file containing exactly the keys documented below (in camelCase). If the file is missing or a key is invalid, Anpan falls back to the defaults listed in section 3 and regenerates it on the next save.
 
 ---
 
@@ -183,3 +155,37 @@ Path: `~/.config/anpan/config.json`
 | `torrentSeedRatio` | string | `"off"` | `"off"`, `"1.0"`, `"2.0"`, `"unlimited"` | Seeding stop ratio after torrent completion |
 | `defaultSearchCat` | string | `"all"` | `"all"`, `"anime"`, `"movies"`, `"tv"`, `"games"` | Default category active when opening torrent search |
 | `defaultSearchSort` | string | `"seeds"` | `"seeds"`, `"size"`, `"size-asc"`, `"peers"`, `"name"`, `"source"` | Default sorting mode for torrent search results |
+
+---
+
+## 4. Desktop & Window Manager Integrations
+
+### Application Launchers (Rofi / dmenu / Walker / Fuzzel)
+
+Anpan registers a desktop entry automatically:
+
+```text
+/usr/share/applications/anpan.desktop
+~/.local/share/applications/anpan.desktop
+```
+
+You can launch `anpan` directly from your application launcher or bind it to a terminal window.
+
+### Hyprland / Sway / i3 Keybinding
+
+Add a hotkey to quickly open `anpan` in your terminal:
+
+**Hyprland (`~/.config/hypr/hyprland.conf`):**
+```ini
+# Open anpan in a floating terminal
+bind = $mainMod, D, exec, kitty --class anpan-float -e anpan
+windowrulev2 = float, class:^(anpan-float)$
+windowrulev2 = size 1000 650, class:^(anpan-float)$
+windowrulev2 = center, class:^(anpan-float)$
+```
+
+**i3 / Sway (`~/.config/i3/config`):**
+```ini
+bindsym $mod+Shift+d exec kitty -e anpan
+for_window [app_id="anpan"] floating enable
+```

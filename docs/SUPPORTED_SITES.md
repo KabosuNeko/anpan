@@ -1,32 +1,6 @@
 # Supported Sites & Routing Architecture
 
-`anpan` inspects target inputs and automatically routes them to the appropriate extraction engine or download backend:
-
-```mermaid
-flowchart TD
-    Input[Target Input] --> Router{Core Target Router}
-    
-    Router -->|Pixiv Artworks| Pixiv[Pixiv Scraper]
-    Router -->|Imgur Galleries| Imgur[Imgur Scraper]
-    Router -->|Booru Imageboards| Booru[Booru Scraper]
-    Router -->|Kemono / Coomer / Pawchive| Archive[Archive Scraper]
-    Router -->|Internet Archive| IA[archive.org Scraper]
-    Router -->|Google Drive / Pixeldrain / Catbox| Cloud[Cloud Direct Engine]
-    Router -->|Direct File URL| Direct[Multi-Connection aria2c Engine]
-    Router -->|Media Streams| Stream[Media Engine via yt-dlp]
-    
-    Router -->|Query Search / ? / ^f| Search[Torrent Search Engine]
-    Router -->|Local Path / ^e| Seed[Torrent Creation & Seeder]
-    Router -->|Magnet / .torrent / InfoHash| Torrent[BitTorrent Engine via aria2c]
-    Router -->|Directory Watch| Watch[Directory Watcher Daemon]
-
-    Pixiv --> Parallel[Parallel Batch aria2c Download]
-    Imgur --> Parallel
-    Booru --> Parallel
-    Archive --> Parallel
-    IA --> Parallel
-    Cloud --> Direct
-```
+`anpan` inspects target inputs and automatically routes them to the appropriate extraction engine or download backend.
 
 ---
 
@@ -40,7 +14,7 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 | **SubsPlease** | Anime | REST JSON API (`subsplease.org/api`) | High-speed releases, automated batch resolution extraction |
 | **Nyaa** | Anime, Japanese Games, Audio | RSS XML API with fast mirror fallback (`nyaa.net` / `nyaa.si`) | Rich seeder counts, human-readable file sizes parsed accurately |
 | **YTS** | Movies | REST JSON API (`yts.mx/api/v2`) | 720p, 1080p, and 4K movie releases with health stats |
-| **EZTV** | TV Shows | REST JSON API (`eztv.re/api`) | Episodic releases with flexible JSON type decoding |
+| **EZTV** | TV Shows | REST JSON API (`eztvx.to/api`) | Episodic releases with flexible JSON type decoding |
 | **The Pirate Bay** | All, Anime, Movies, TV, Games | Clean REST API (`apibay.org`) | Broad historical releases, dedicated category top 100 browse |
 | **1337x** | Movies, TV, Games | Scraped HTML parser with mirror failover | Multi-category coverage, verified uploaders |
 | **FitGirl Repacks** | Verified PC Game Repacks | RSS XML Feed (`fitgirl-repacks.site/feed`) | Highly compressed, trusted, verified game repacks |

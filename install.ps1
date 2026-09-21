@@ -12,20 +12,7 @@ if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
 }
 
 $Asset = "anpan-windows-$Arch.zip"
-
-Write-Host "→ Fetching latest version of anpan..." -ForegroundColor Cyan
-try {
-    $ReleaseInfo = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
-    $Version = $ReleaseInfo.tag_name.TrimStart('v')
-} catch {
-    $Version = $null
-}
-
-if ($Version) {
-    $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$Asset"
-} else {
-    $DownloadUrl = "https://github.com/$Repo/releases/latest/download/$Asset"
-}
+$DownloadUrl = "https://github.com/$Repo/releases/latest/download/$Asset"
 
 $TempZip = [System.IO.Path]::GetTempFileName() + ".zip"
 $TempExtract = Join-Path ([System.IO.Path]::GetTempPath()) "anpan-install-$([System.Guid]::NewGuid())"
