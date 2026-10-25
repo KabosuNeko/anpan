@@ -65,6 +65,20 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 - **Extraction Mechanism**:
   - Queries native JSON API endpoints to fetch raw, uncompressed source artwork files directly.
 
+### Instagram Posts (`/p/`)
+- **Supported URLs**: `https://www.instagram.com/p/{shortcode}/`
+- **Extraction Mechanism**:
+  - Reads the public embed JSON to list every image and video in single posts and carousel/slide posts.
+  - The TUI archive selector lets you download all items or one item.
+  - Reels (`/reel/` and `/tv/`) still use yt-dlp.
+
+### TikTok Photo Slides
+- **Supported URLs**: `https://www.tiktok.com/@{user}/video/{id}` and `.../photo/{id}`
+- **Extraction Mechanism**:
+  - Photo posts are detected when yt-dlp reports no video formats.
+  - yt-dlp solves TikTok's JS challenge; anpan reads the saved page data and lists every image in the slide.
+  - Regular TikTok videos still use yt-dlp.
+
 ---
 
 ## 3. Archive Hubs & Digital Libraries

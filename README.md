@@ -28,6 +28,7 @@
 - **Directory Watch Daemon**: Automatically downloads `.torrent`, `.magnet`, or link files dropped into a watched folder.
 - **Parallel Downloads**: Multi-connection segmented downloads (up to 32 connections) via `aria2c`.
 - **Stream & Media Extraction**: Full yt-dlp integration with codec selection, audio conversion, synchronized `.lrc` lyrics, ID3 tags, and SponsorBlock.
+- **Carousel & Photo Slides**: Instagram carousels and TikTok photo posts list every image/video for batch download.
 - **Tabbed Settings**: 4-tab configuration modal (`General`, `Video`, `Audio`, `Torrent`).
 - **Single Static Binary**: Zero CGo, with a built-in self-updater.
 

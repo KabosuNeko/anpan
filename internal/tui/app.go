@@ -384,6 +384,12 @@ func (m Model) startInspect(raw string) tea.Cmd {
 
 func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
 	return func() tea.Msg {
+		if engine.IsInstagramPostURL(target.CleanURL) {
+			if post, igErr := engine.ProbeInstagramPost(m.ctx, target.CleanURL); igErr == nil && post != nil && len(post.Files) > 0 {
+				return inspectMsg{target: &core.TargetInspection{Type: core.TargetArchive, ArchivePost: post}}
+			}
+		}
+
 		ytdlp, err := engine.EnsureYtDlpBinary(m.ctx, nil)
 		if err != nil {
 			return probeResultMsg{err: err}
@@ -399,6 +405,11 @@ func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
 
 		res, err := engine.ProbeVideo(m.ctx, ytdlp, target.CleanURL)
 		if err != nil {
+			if core.IsTikTokURL(target.CleanURL) {
+				if post, photoErr := engine.ProbeTikTokPhotos(m.ctx, ytdlp, target.CleanURL); photoErr == nil && post != nil && len(post.Files) > 0 {
+					return inspectMsg{target: &core.TargetInspection{Type: core.TargetArchive, ArchivePost: post}}
+				}
+			}
 			return probeResultMsg{err: err}
 		}
 		opts := &engine.ExtractPortionsOptions{
@@ -495,7 +506,7 @@ func (m Model) startBake() tea.Cmd {
 			}
 			folder := outDir
 			if len(filesToDownload) > 1 && m.archivePost != nil {
-				folder = filepath.Join(outDir, m.archivePost.Title)
+				folder = filepath.Join(outDir, units.Truncate(m.archivePost.Title, 60))
 			}
 			path, err := engine.BakeBatchDownload(m.ctx, engine.BatchDownloadOptions{
 				Aria2cBin:   aria2c,
@@ -1467,9 +1478,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case core.TargetArchive:
 			m.archivePost = msg.target.ArchivePost
-			system.AddToHistory(msg.target.URL)
-			m.history = system.LoadHistory()
-			m.historyPos = -1
+			if m.archivePost != nil && m.archivePost.WebpageURL != "" {
+				system.AddToHistory(m.archivePost.WebpageURL)
+				m.history = system.LoadHistory()
+				m.historyPos = -1
+			}
 
 			if msg.target.ArchivePost != nil && len(msg.target.ArchivePost.Files) > 1 {
 				// Multiple files: prompt user to download all or pick a specific file
