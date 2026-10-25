@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/KabosuNeko/anpan/internal/engine"
 	"github.com/KabosuNeko/anpan/internal/system"
 	"github.com/KabosuNeko/anpan/internal/tui"
 	"github.com/spf13/cobra"
@@ -112,6 +113,7 @@ Examples:
 )
 
 func init() {
+	engine.UserAgent = "anpan/" + Version
 	rootCmd.Flags().StringVarP(&outputDir, "out-dir", "o", "", "specify download output directory")
 	rootCmd.Flags().StringVarP(&inputFile, "input", "i", "", "batch download from a text file (one URL per line)")
 	rootCmd.Flags().StringVarP(&inputFile, "file", "f", "", "batch download from a text file (alias for -i)")

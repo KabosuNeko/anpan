@@ -74,7 +74,6 @@ type BrowseViewState struct {
 	ActiveCategory  string
 	FocusedRegion   string // "sidebar" | "search" | "content" | "detail"
 	SearchInput     string
-	CursorPos       int
 	Results         []engine.TorrentSearchResult
 	Cursor          int
 	Page            int
@@ -239,7 +238,7 @@ func RenderBrowseView(state BrowseViewState) string {
 		count := len(state.Results)
 		headText := ""
 		if state.Searching {
-			headText = styleTitle.Render("Searching across 5 indexers…")
+			headText = styleTitle.Render("Searching torrent sources…")
 		} else if count == 0 {
 			if state.SearchInput != "" {
 				headText = styleDim.Render(fmt.Sprintf("No results for \"%s\". Try other keywords.", units.Truncate(state.SearchInput, 32)))
@@ -255,7 +254,7 @@ func RenderBrowseView(state BrowseViewState) string {
 			if state.MinSeeds > 0 {
 				filterSuffix = fmt.Sprintf(" · min seeds: %d+", state.MinSeeds)
 			}
-			headText = styleDim.Render(fmt.Sprintf("%d results across 5 sources%s%s", count, sortSuffix, filterSuffix))
+			headText = styleDim.Render(fmt.Sprintf("%d results across sources%s%s", count, sortSuffix, filterSuffix))
 		}
 		contentLines = append(contentLines, headText)
 		contentLines = append(contentLines, "")

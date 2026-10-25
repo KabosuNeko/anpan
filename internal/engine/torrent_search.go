@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -42,11 +43,6 @@ type SearchOptions struct {
 var searchHTTPClient = &http.Client{
 	Timeout: 8 * time.Second,
 }
-
-const (
-	uaAnpan   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) anpan/1.0.1"
-	uaTorlink = "anpan/torlink-client"
-)
 
 // fetchHTML performs a GET request with searchHTTPClient and returns the response body.
 func fetchHTML(ctx context.Context, endpoint string, userAgent string) ([]byte, error) {
@@ -111,17 +107,22 @@ func SearchTorrents(ctx context.Context, query string, opts *SearchOptions) ([]T
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var allResults []TorrentSearchResult
+	var sourceErrs []error
+	okSources := 0
 
 	collect := func(fn func(context.Context, string, string, int) ([]TorrentSearchResult, error)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			res, err := fn(ctx, query, cat, page)
-			if err == nil && len(res) > 0 {
-				mu.Lock()
-				allResults = append(allResults, res...)
-				mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				sourceErrs = append(sourceErrs, err)
+				return
 			}
+			okSources++
+			allResults = append(allResults, res...)
 		}()
 	}
 
@@ -154,6 +155,10 @@ func SearchTorrents(ctx context.Context, query string, opts *SearchOptions) ([]T
 	}
 
 	wg.Wait()
+
+	if okSources == 0 && len(sourceErrs) > 0 {
+		return nil, errors.Join(sourceErrs...)
+	}
 
 	seen := make(map[string]TorrentSearchResult)
 	for _, r := range allResults {
@@ -245,7 +250,7 @@ func searchSubsPlease(ctx context.Context, query string, cat string, page int) (
 		endpoint = fmt.Sprintf("https://subsplease.org/api/?f=search&tz=Asia/Tokyo&s=%s&p=%d", url.QueryEscape(query), page)
 	}
 
-	body, err := fetchHTML(ctx, endpoint, uaAnpan)
+	body, err := fetchHTML(ctx, endpoint, browserUserAgent)
 	if err != nil {
 		return nil, fmt.Errorf("subsplease: %w", err)
 	}
@@ -273,17 +278,11 @@ func searchSubsPlease(ctx context.Context, query string, cat string, page int) (
 			}
 			title := fmt.Sprintf("[SubsPlease] %s - %s (%sp)", item.Show, item.Episode, dl.Res)
 			ih := ParseInfoHashFromMagnet(dl.Magnet)
-			sizeBytes := parseSizeFromMagnet(dl.Magnet)
-			if sizeBytes == 0 {
-				sizeBytes = 1400 * 1024 * 1024 // fallback ~1.4GB
-			}
 			results = append(results, TorrentSearchResult{
 				Title:     title,
 				InfoHash:  ih,
 				Magnet:    EnrichMagnetWithTrackers(dl.Magnet),
-				SizeBytes: sizeBytes,
-				Seeders:   100, // Active swarm
-				Leechers:  10,
+				SizeBytes: parseSizeFromMagnet(dl.Magnet),
 				Source:    "SubsPlease",
 				Category:  "anime",
 			})
@@ -333,7 +332,7 @@ func searchNyaa(ctx context.Context, query string, cat string, page int) ([]Torr
 	for _, mirror := range mirrors {
 		endpoint := fmt.Sprintf(mirror, url.QueryEscape(query), page)
 		reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		data, err := fetchHTML(reqCtx, endpoint, uaAnpan)
+		data, err := fetchHTML(reqCtx, endpoint, browserUserAgent)
 		cancel()
 		if err != nil {
 			lastErr = fmt.Errorf("nyaa: %w", err)
@@ -407,7 +406,7 @@ func searchYTS(ctx context.Context, query string, cat string, page int) ([]Torre
 	var lastErr error
 	for _, mirror := range mirrors {
 		endpoint := fmt.Sprintf(mirror, page, url.QueryEscape(query))
-		data, err := fetchHTML(ctx, endpoint, uaTorlink)
+		data, err := fetchHTML(ctx, endpoint, browserUserAgent)
 		if err != nil {
 			lastErr = err
 			continue
@@ -466,7 +465,7 @@ func containsAllTokens(haystack string, tokens []string) bool {
 
 func searchEZTV(ctx context.Context, query string, cat string, page int) ([]TorrentSearchResult, error) {
 	endpoint := fmt.Sprintf("https://eztvx.to/api/get-torrents?limit=100&page=%d", page)
-	dataBytes, err := fetchHTML(ctx, endpoint, uaTorlink)
+	dataBytes, err := fetchHTML(ctx, endpoint, browserUserAgent)
 	if err != nil {
 		return nil, fmt.Errorf("eztv: %w", err)
 	}
@@ -540,7 +539,7 @@ func searchPirateBay(ctx context.Context, query string, cat string, page int) ([
 		endpoint = fmt.Sprintf("https://apibay.org/q.php?q=%s%s", url.QueryEscape(query), catParam)
 	}
 
-	body, err := fetchHTML(ctx, endpoint, uaTorlink)
+	body, err := fetchHTML(ctx, endpoint, browserUserAgent)
 	if err != nil {
 		return nil, fmt.Errorf("apibay: %w", err)
 	}
@@ -622,7 +621,7 @@ func searchFitGirl(ctx context.Context, query string, cat string, page int) ([]T
 	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
-	bodyBytes, err := fetchHTML(reqCtx, endpoint, "torlink (+https://www.npmjs.com/package/torlnk)")
+	bodyBytes, err := fetchHTML(reqCtx, endpoint, browserUserAgent)
 	if err != nil {
 		return nil, nil // graceful fail-soft on DDoS-Guard / network timeouts
 	}
@@ -723,7 +722,7 @@ func search1337x(ctx context.Context, query string, cat string, page int) ([]Tor
 	for _, host := range mirrors {
 		endpoint := "https://" + host + path
 		reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		bodyBytes, err := fetchHTML(reqCtx, endpoint, uaAnpan)
+		bodyBytes, err := fetchHTML(reqCtx, endpoint, browserUserAgent)
 		cancel()
 		if err != nil {
 			continue
@@ -820,7 +819,7 @@ func parse1337xHTML(ctx context.Context, host string, htmlContent string, cat st
 			reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 
-			detailBytes, err := fetchHTML(reqCtx, detailURL, uaAnpan)
+			detailBytes, err := fetchHTML(reqCtx, detailURL, browserUserAgent)
 			if err != nil {
 				return
 			}

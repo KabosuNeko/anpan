@@ -52,10 +52,3 @@ func TestUninstallCmd(t *testing.T) {
 		t.Errorf("expected -y/--yes flag")
 	}
 }
-
-func TestUpdateCmdExecution(t *testing.T) {
-	buf := new(bytes.Buffer)
-	rootCmd.SetOut(buf)
-	rootCmd.SetArgs([]string{"update"})
-	_ = rootCmd.Execute()
-}

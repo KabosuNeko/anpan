@@ -42,7 +42,6 @@ type TargetInspection struct {
 	// For direct
 	URL      string
 	Filename string
-	Size     *int64
 
 	// For archive
 	ArchivePost *engine.ArchivePost
@@ -50,7 +49,6 @@ type TargetInspection struct {
 	// For video
 	CleanURL  string
 	TimeRange string
-	TimeLabel string
 }
 
 var directExtensions = map[string]bool{
@@ -156,17 +154,11 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 		if err != nil {
 			return nil, fmt.Errorf("seed path not found: %w", err)
 		}
-		var sz *int64
-		if !fi.IsDir() {
-			s := fi.Size()
-			sz = &s
-		}
 		return &TargetInspection{
 			Type:     TargetSeed,
 			Target:   cleanSeed,
 			Name:     fi.Name(),
 			Filename: fi.Name(),
-			Size:     sz,
 		}, nil
 	}
 
@@ -193,17 +185,11 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 	// Local file or directory on disk (Seed candidate if not .torrent)
 	if fi, err := os.Stat(cleaned); err == nil {
 		if !strings.HasSuffix(strings.ToLower(cleaned), ".torrent") {
-			var sz *int64
-			if !fi.IsDir() {
-				s := fi.Size()
-				sz = &s
-			}
 			return &TargetInspection{
 				Type:     TargetSeed,
 				Target:   cleaned,
 				Name:     fi.Name(),
 				Filename: fi.Name(),
-				Size:     sz,
 			}, nil
 		}
 		// Local .torrent file
@@ -272,7 +258,6 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 				Type:     TargetDirect,
 				URL:      cloudFile.URL,
 				Filename: cloudFile.Filename,
-				Size:     cloudFile.Size,
 			}, nil
 		}
 	}
@@ -283,7 +268,6 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 			Type:      TargetVideo,
 			CleanURL:  cleanURL,
 			TimeRange: parsedInput.TimeRange,
-			TimeLabel: parsedInput.TimeLabel,
 		}, nil
 	}
 
@@ -339,7 +323,6 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 						Type:     TargetDirect,
 						URL:      cleanURL,
 						Filename: filename,
-						Size:     size,
 					}, nil
 				}
 			}
@@ -350,6 +333,5 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 		Type:      TargetVideo,
 		CleanURL:  cleanURL,
 		TimeRange: parsedInput.TimeRange,
-		TimeLabel: parsedInput.TimeLabel,
 	}, nil
 }

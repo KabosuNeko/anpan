@@ -56,3 +56,12 @@ func TestParseAriaProgressLine(t *testing.T) {
 		t.Errorf("Mismatch for line4: %+v", res4)
 	}
 }
+
+func TestDirectArgsDoesNotOverwrite(t *testing.T) {
+	args := directArgs("/tmp", 0)
+	for _, a := range args {
+		if a == "--allow-overwrite=true" || a == "--auto-file-renaming=false" {
+			t.Fatalf("directArgs must not force overwriting existing files: %v", args)
+		}
+	}
+}

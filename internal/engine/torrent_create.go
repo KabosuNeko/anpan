@@ -59,15 +59,17 @@ func CreateTorrent(sourcePath string, outPath string, opts *TorrentCreateOptions
 				return walkErr
 			}
 			if info.IsDir() {
+				if path != absPath && strings.HasPrefix(info.Name(), ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if strings.HasPrefix(info.Name(), ".") || strings.HasSuffix(info.Name(), ".torrent") {
 				return nil
 			}
 			rel, relErr := filepath.Rel(absPath, path)
 			if relErr != nil {
 				return relErr
-			}
-			// Skip .torrent files or hidden files like .DS_Store
-			if strings.HasSuffix(rel, ".torrent") || filepath.Base(rel) == ".DS_Store" {
-				return nil
 			}
 			parts := strings.Split(filepath.ToSlash(rel), "/")
 			fileEntries = append(fileEntries, fileMeta{

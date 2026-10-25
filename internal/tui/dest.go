@@ -12,7 +12,6 @@ import (
 )
 
 type DestOption struct {
-	Key      string
 	Label    string
 	Path     string
 	IsCustom bool
@@ -29,34 +28,29 @@ func BuildDestOptions(defaultOutDir string) []DestOption {
 
 	var opts []DestOption
 	opts = append(opts, DestOption{
-		Key:   "default",
 		Label: fmt.Sprintf("[↵] %s (default)", units.ShortenPath(defaultOutDir, home, 28)),
 		Path:  defaultOutDir,
 	})
 
 	if cleanDownloads != cleanDef {
 		opts = append(opts, DestOption{
-			Key:   "d",
-			Label: fmt.Sprintf("[D] %s", units.ShortenPath(filepath.Join(home, "Downloads"), home, 28)),
+			Label: units.ShortenPath(filepath.Join(home, "Downloads"), home, 28),
 			Path:  filepath.Join(home, "Downloads"),
 		})
 	}
 	if cleanVideos != cleanDef {
 		opts = append(opts, DestOption{
-			Key:   "v",
-			Label: fmt.Sprintf("[V] %s", units.ShortenPath(filepath.Join(home, "Videos"), home, 28)),
+			Label: units.ShortenPath(filepath.Join(home, "Videos"), home, 28),
 			Path:  filepath.Join(home, "Videos"),
 		})
 	}
 	if cleanCwd != cleanDef {
 		opts = append(opts, DestOption{
-			Key:   "c",
-			Label: "[C] Current folder (./)",
+			Label: "Current folder (./)",
 			Path:  cwd,
 		})
 	}
 	opts = append(opts, DestOption{
-		Key:      "o",
 		Label:    "[O] Custom path…",
 		IsCustom: true,
 	})

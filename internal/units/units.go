@@ -95,18 +95,7 @@ func Truncate(text string, max int) string {
 	if target < 1 {
 		target = 1
 	}
-	var b strings.Builder
-	curWidth := 0
-	for _, r := range text {
-		w := runewidth.RuneWidth(r)
-		if curWidth+w > target {
-			break
-		}
-		b.WriteRune(r)
-		curWidth += w
-	}
-	b.WriteString("…")
-	return b.String()
+	return truncateWidth(text, target) + "…"
 }
 
 func ShortenPath(filePath string, homeDir string, max ...int) string {
@@ -133,15 +122,30 @@ func ShortenPath(filePath string, homeDir string, max ...int) string {
 		pretty = "~" + normFile[len(normHome):]
 	}
 
-	if len(pretty) <= maxLen {
+	if runewidth.StringWidth(pretty) <= maxLen {
 		return pretty
 	}
 	ext := filepath.Ext(pretty)
-	trimLen := maxLen - len(ext) - 1
+	trimLen := maxLen - runewidth.StringWidth(ext) - 1
 	if trimLen < 1 {
 		trimLen = 1
 	}
-	return fmt.Sprintf("%s…%s", pretty[:trimLen], ext)
+	return fmt.Sprintf("%s…%s", truncateWidth(pretty, trimLen), ext)
+}
+
+// truncateWidth returns the longest prefix of s whose display width does not exceed max.
+func truncateWidth(s string, max int) string {
+	var b strings.Builder
+	width := 0
+	for _, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if width+rw > max {
+			break
+		}
+		b.WriteRune(r)
+		width += rw
+	}
+	return b.String()
 }
 
 func ResolveUserPath(raw string, customHome ...string) string {

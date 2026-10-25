@@ -3,9 +3,9 @@ package system
 import (
 	"context"
 	"fmt"
+	"html"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -44,7 +44,7 @@ $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($template)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("anpan").Show($toast)
-`, strings.ReplaceAll(title, `"`, `\"`), strings.ReplaceAll(message, `"`, `\"`))
+`, html.EscapeString(title), html.EscapeString(message))
 			_ = exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", psScript).Run()
 		}
 	}()

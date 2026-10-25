@@ -110,4 +110,4 @@ If you want to reset all settings to factory defaults:
 ```sh
 rm ~/.config/anpan/config.json
 ```
-Anpan will generate a clean `config.json` with recommended defaults on the next launch.
+Anpan will use the recommended defaults and write a clean `config.json` the next time you change a setting.

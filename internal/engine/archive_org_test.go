@@ -18,6 +18,7 @@ func TestIsArchiveOrgURL(t *testing.T) {
 }
 
 func TestProbeArchiveOrgLive(t *testing.T) {
+	skipIfShort(t)
 	ctx := context.Background()
 	post, err := ProbeArchiveOrg(ctx, "https://archive.org/details/msdos_Oregon_Trail_The_1990")
 	if err != nil {

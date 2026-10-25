@@ -35,7 +35,7 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "anpan-downloader/1.0.1")
+	req.Header.Set("User-Agent", UserAgent)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -84,8 +84,12 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 			if cleanName == "" {
 				continue
 			}
+			name := sanitizeFilename(cleanName)
+			if name == "" {
+				continue
+			}
 			out = append(out, ArchiveFile{
-				Name: sanitizeFilename(cleanName),
+				Name: name,
 				URL:  archiveFileURL(cleanName),
 			})
 		}

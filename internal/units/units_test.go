@@ -4,6 +4,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 )
 
 func TestFormatBytes(t *testing.T) {
@@ -147,5 +150,17 @@ func TestWrapText(t *testing.T) {
 	spaced := WrapText("  spaced  out  ", 20)
 	if len(spaced) != 1 || spaced[0] != "spaced out" {
 		t.Errorf("WrapText('  spaced  out  ', 20) = %v", spaced)
+	}
+}
+
+func TestShortenPathUnicode(t *testing.T) {
+	home := "/home/user"
+	file := "/home/user/😀/a-very-long-directory-name/file.mp4"
+	got := ShortenPath(file, home, 10)
+	if !utf8.ValidString(got) {
+		t.Fatalf("ShortenPath produced invalid UTF-8: %q", got)
+	}
+	if runewidth.StringWidth(got) > 10 {
+		t.Fatalf("ShortenPath width %d exceeds 10: %q", runewidth.StringWidth(got), got)
 	}
 }

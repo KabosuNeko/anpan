@@ -743,3 +743,36 @@ func TestAppTabbedSettingsNavigation(t *testing.T) {
 		t.Errorf("Expected stage StageInput after esc, got %s", m8.stage)
 	}
 }
+
+func TestAppEscCancelKeepsContextUsable(t *testing.T) {
+	m := NewModel("0.0.0-test", "", "")
+	m.stage = StageBaking
+
+	esc := tea.KeyPressMsg{Code: tea.KeyEsc}
+	next, _ := m.Update(esc)
+	got := next.(Model)
+
+	if got.stage != StageInput {
+		t.Fatalf("expected StageInput after esc, got %s", got.stage)
+	}
+	if got.ctx.Err() != nil {
+		t.Fatalf("context must be replaced after cancelling a download, got %v", got.ctx.Err())
+	}
+}
+
+func TestAppInitialOutDirWins(t *testing.T) {
+	dir := t.TempDir()
+	m := NewModel("0.0.0-test", "", dir)
+	m.config.AskSaveDir = false
+	m.stage = StageDirectPrompt
+	m.target = &core.TargetInspection{Type: core.TargetDirect, URL: "http://example.com/file", Filename: "file"}
+	m.promptChoice = 0
+
+	enter := tea.KeyPressMsg{Code: tea.KeyEnter}
+	next, _ := m.Update(enter)
+	got := next.(Model)
+
+	if got.chosenDest != dir {
+		t.Fatalf("expected -o dir %q, got %q", dir, got.chosenDest)
+	}
+}

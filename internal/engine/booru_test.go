@@ -25,6 +25,7 @@ func TestIsBooruURL(t *testing.T) {
 }
 
 func TestProbeBooruLive(t *testing.T) {
+	skipIfShort(t)
 	ctx := context.Background()
 	post, err := ProbeBooruPost(ctx, "https://yande.re/post/show/1268141")
 	if err != nil {

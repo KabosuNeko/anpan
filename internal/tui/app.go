@@ -78,7 +78,7 @@ var stageHints = map[StageName][][2]string{
 	StageDest: {
 		{"↑↓", "choose"},
 		{"↵", "confirm"},
-		{"D/V/C", "quick folder"},
+		{"o", "custom"},
 		{"esc", "back"},
 		{"^c", "quit"},
 	},
@@ -412,11 +412,27 @@ func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
 	}
 }
 
+// outputDir resolves the destination for downloads: the -o flag wins over the configured default.
+func (m Model) outputDir() string {
+	if m.initialOutDir != "" {
+		return units.ResolveUserPath(m.initialOutDir)
+	}
+	return m.config.OutDir
+}
+
+// cleanupProbeCache removes the cached yt-dlp metadata once it is no longer needed.
+func (m *Model) cleanupProbeCache() {
+	if m.probeResult != nil && m.probeResult.CachedJSONPath != "" {
+		_ = os.Remove(m.probeResult.CachedJSONPath)
+		m.probeResult.CachedJSONPath = ""
+	}
+}
+
 func (m Model) startBake() tea.Cmd {
 	return func() tea.Msg {
 		outDir := m.chosenDest
 		if outDir == "" {
-			outDir = m.config.OutDir
+			outDir = m.outputDir()
 		}
 
 		handlers := engine.BakeHandlers{
@@ -503,6 +519,9 @@ func (m Model) startBake() tea.Cmd {
 		if m.probeResult != nil {
 			cachedPath = m.probeResult.CachedJSONPath
 		}
+		if cachedPath != "" {
+			defer os.Remove(cachedPath)
+		}
 
 		var aria2cArgs []string
 		if m.config.Aria2c {
@@ -586,7 +605,7 @@ func (m *Model) beginTorrentDownload(r engine.TorrentSearchResult, forceDest boo
 		m.promptDest(r.Title, fmt.Sprintf("BitTorrent · %s", r.Source))
 		return nil
 	}
-	return m.bakeInto(m.config.OutDir, 1)
+	return m.bakeInto(m.outputDir(), 1)
 }
 
 // promptDest opens the destination picker for the pending download.
@@ -769,7 +788,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		panelWidth := 70
 		if m.width > 0 && m.width < 74 {
-			panelWidth = m.width - 4
+			panelWidth = max(m.width-4, 20)
 		}
 		// TrayInput button "bake" has width = len("bake") + 4 = 8.
 		// leftW = panelWidth - 8. Inner field is leftW - 4 = panelWidth - 12.
@@ -780,6 +799,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			m.cancelCtx()
+			m.cleanupProbeCache()
 			if m.seedingCancel != nil {
 				m.seedingCancel()
 			}
@@ -860,10 +880,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.stage == StageProbing || m.stage == StageBaking {
 				m.cancelCtx()
+				m.ctx, m.cancelCtx = context.WithCancel(context.Background())
+				m.processing = false
 				m.stage = StageInput
 				return m, nil
 			}
 			if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt || m.stage == StageSelecting {
+				m.cleanupProbeCache()
 				m.stage = StageInput
 				return m, nil
 			}
@@ -963,7 +986,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.stage == StageDest && !m.isCustomDest {
 				m.isCustomDest = true
-				m.destInput.SetValue(m.config.OutDir)
+				m.destInput.SetValue(m.outputDir())
 				m.destInput.Focus()
 				return m, nil
 			}
@@ -1181,7 +1204,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.promptDest(m.target.Filename, fmt.Sprintf("%d connections · direct file", m.config.Connections))
 						return m, nil
 					}
-					return m, m.bakeInto(m.config.OutDir, 1)
+					return m, m.bakeInto(m.outputDir(), 1)
 				}
 				m.stage = StageInput
 				return m, nil
@@ -1192,7 +1215,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.promptDest(m.target.Name, "BitTorrent P2P transfer · aria2c")
 						return m, nil
 					}
-					return m, m.bakeInto(m.config.OutDir, 1)
+					return m, m.bakeInto(m.outputDir(), 1)
 				}
 				m.stage = StageInput
 				return m, nil
@@ -1230,14 +1253,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.promptDest(m.archivePost.Title, fmt.Sprintf("Archive batch (%d items)", len(m.selectedArchiveFiles)))
 						return m, nil
 					}
-					return m, m.bakeInto(m.config.OutDir, len(m.selectedArchiveFiles))
+					return m, m.bakeInto(m.outputDir(), len(m.selectedArchiveFiles))
 				}
 
 				if m.config.AskSaveDir && m.initialOutDir == "" {
 					m.promptDest(m.destTargetTitle, m.destTargetSub)
 					return m, nil
 				}
-				return m, m.bakeInto(m.config.OutDir, 1)
+				return m, m.bakeInto(m.outputDir(), 1)
 
 			case StageDest:
 				if m.isCustomDest {
@@ -1247,12 +1270,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					return m, m.bakeInto(units.ResolveUserPath(val), 1)
 				}
-				opts := BuildDestOptions(m.config.OutDir)
+				opts := BuildDestOptions(m.outputDir())
 				if m.destIndex >= 0 && m.destIndex < len(opts) {
 					opt := opts[m.destIndex]
 					if opt.IsCustom {
 						m.isCustomDest = true
-						m.destInput.SetValue(m.config.OutDir)
+						m.destInput.SetValue(m.outputDir())
 						m.destInput.Focus()
 						return m, nil
 					}
@@ -1333,7 +1356,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.config.OutDir)
+				opts := BuildDestOptions(m.outputDir())
 				if m.destIndex < len(opts)-1 {
 					m.destIndex++
 				}
@@ -1479,7 +1502,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.promptDest(title, "Archive file download")
 				return m, nil
 			}
-			return m, m.bakeInto(m.config.OutDir, 1)
+			return m, m.bakeInto(m.outputDir(), 1)
 
 		case core.TargetVideo:
 			m.statusText = "extracting formats with yt-dlp…"
@@ -1534,6 +1557,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.errText = msg.err.Error()
 			return m, nil
 		}
+		if _, err := engine.FindAria2c(); err != nil {
+			m.stage = StageError
+			m.errText = fmt.Sprintf("torrent created at %s and magnet copied, but aria2c was not found; install aria2c to seed", msg.torrentPath)
+			return m, nil
+		}
 		m.seedingActive = true
 		m.seedingName = msg.name
 		m.seedingMagnet = msg.magnet
@@ -1563,6 +1591,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.stage = StageError
 			m.errText = msg.err.Error()
 			return m, nil
+		}
+		if m.probeResult != nil && m.probeResult.CachedJSONPath != msg.probeResult.CachedJSONPath {
+			m.cleanupProbeCache()
 		}
 		m.probeResult = msg.probeResult
 		m.portions = msg.portions
@@ -1595,7 +1626,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.promptDest(m.probeResult.Meta.Title, m.portions[chosenIdx].Label)
 					return m, nil
 				}
-				return m, m.bakeInto(m.config.OutDir, 1)
+				return m, m.bakeInto(m.outputDir(), 1)
 			}
 		}
 
@@ -1730,7 +1761,7 @@ func (m Model) View() tea.View {
 
 	panelWidth := 70
 	if m.width > 0 && m.width < 74 {
-		panelWidth = m.width - 4
+		panelWidth = max(m.width-4, 20)
 	}
 
 	mascot := RenderMascot(panelWidth)
@@ -1876,7 +1907,7 @@ func (m Model) View() tea.View {
 
 	case StageDest:
 		m.destInput.SetWidth(panelWidth - 14)
-		stageBlock = RenderDestView(panelWidth, m.destTargetTitle, m.destTargetSub, m.isCustomDest, m.destIndex, m.destInput, m.config.OutDir)
+		stageBlock = RenderDestView(panelWidth, m.destTargetTitle, m.destTargetSub, m.isCustomDest, m.destIndex, m.destInput, m.outputDir())
 
 	case StageBaking:
 		title := "Download"

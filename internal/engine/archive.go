@@ -54,10 +54,14 @@ func ParseArchiveURL(rawURL string) *ParsedArchiveURL {
 	}
 }
 
-var invalidCharRegex = regexp.MustCompile(`[/\\?%*:|"<>]+`)
+var invalidCharRegex = regexp.MustCompile(`[\x00-\x1f\x7f/\\?%*:|"<>]+`)
 
 func sanitizeFilename(name string) string {
-	return invalidCharRegex.ReplaceAllString(name, "_")
+	clean := strings.TrimSpace(invalidCharRegex.ReplaceAllString(name, "_"))
+	if clean == "." || clean == ".." {
+		return ""
+	}
+	return clean
 }
 
 func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) {
@@ -86,7 +90,7 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("User-Agent", browserUserAgent)
 	if isPawchive {
 		req.Header.Set("Accept", "application/json")
 	} else {
@@ -136,6 +140,9 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 			}
 		}
 		cleanName := sanitizeFilename(fileName)
+		if cleanName == "" {
+			cleanName = "file"
+		}
 		encodedName := url.QueryEscape(cleanName)
 
 		var mirrors []string

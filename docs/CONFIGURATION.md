@@ -9,8 +9,8 @@
 ### Global Shortcuts
 | Key | Context | Action |
 | :--- | :--- | :--- |
-| `Ctrl + S` | Input / Search / Results | Open tabbed settings modal |
-| `Ctrl + C` | Anywhere | Immediate graceful quit / Cancel current process |
+| `Ctrl + S` | Main screen / result screen | Open tabbed settings modal |
+| `Ctrl + C` | Anywhere | Quit and cancel the running download |
 | `Esc` | Modals & Menus | Close modal, cancel prompt, or step back |
 
 ---
@@ -67,17 +67,14 @@ Opened with `i` or `Space` on any search result:
 | Key | Action |
 | :--- | :--- |
 | `↑` / `↓` | Navigate preset destination options |
-| `D` | Quick-select standard `~/Downloads` |
-| `V` | Quick-select `~/Videos` |
-| `C` | Quick-select Current Working Directory |
-| `e` | Focus text box to edit custom directory path |
+| `o` | Focus text box to edit custom directory path |
 | `Enter` (`↵`) | Confirm selected destination and start download |
 | `Esc` | Cancel and return to previous screen |
 
 ---
 
 ### Tabbed Settings Modal (`StageSettings`)
-Press `Ctrl+S` from the main screen or results to open the 4-tab compact configuration interface:
+Press `Ctrl+S` from the main screen or result screen to open the 4-tab compact configuration interface:
 
 | Key | Action |
 | :--- | :--- |
@@ -94,10 +91,8 @@ Press `Ctrl+S` from the main screen or results to open the 4-tab compact configu
 ### Multi-File Post Selector (Pixiv / Kemono / Coomer / Archive.org)
 | Key | Action |
 | :--- | :--- |
-| `↑` / `↓` | Move cursor through the list of attachments |
-| `Space` | Toggle checkbox for the selected file |
-| `a` | Select All / Deselect All files |
-| `Enter` (`↵`) | Confirm selection and download chosen files in parallel |
+| `↑` / `↓` | Move cursor between "all files" and each attachment |
+| `Enter` (`↵`) | Download all files, or the selected attachment |
 | `Esc` | Cancel and return |
 
 ---
@@ -106,7 +101,7 @@ Press `Ctrl+S` from the main screen or results to open the 4-tab compact configu
 
 Path: `~/.config/anpan/config.json`
 
-Anpan writes a JSON file containing exactly the keys documented below (in camelCase). If the file is missing or a key is invalid, Anpan falls back to the defaults listed in section 3 and regenerates it on the next save.
+Anpan writes a JSON file containing exactly the keys documented below (in camelCase). If the file is missing or unreadable, or a value is empty, Anpan uses the defaults listed in section 3 and writes them back on the next save.
 
 ---
 
