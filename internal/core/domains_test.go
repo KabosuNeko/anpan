@@ -13,6 +13,8 @@ func TestIsKnownSite(t *testing.T) {
 		{"https://www.youtube.com/watch?v=123", true},
 		{"https://soundcloud.com/artist/track", true},
 		{"https://tiktok.com/@user/video/123", true},
+		{"https://vt.tiktok.com/ZS123/", true},
+		{"https://tiktokv.com/share/video/123/", true},
 		{"https://bandcamp.com/album/xyz", true},
 		{"https://example.com/artist/track", false},
 	}
@@ -53,5 +55,23 @@ func TestIsPlaylistURL(t *testing.T) {
 	}
 	if IsPlaylistURL("https://www.youtube.com/watch?v=dQw4w9WgXcQ") {
 		t.Errorf("Expected false for single YouTube video")
+	}
+}
+
+func TestIsTikTokURL(t *testing.T) {
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"https://www.tiktok.com/@user/video/123", true},
+		{"https://vt.tiktok.com/ZS123/", true},
+		{"https://tiktokv.com/share/video/123/", true},
+		{"https://evil.com/?u=https://tiktok.com/@user/video/123", false},
+		{"https://youtube.com/watch?v=123", false},
+	}
+	for _, tc := range cases {
+		if got := IsTikTokURL(tc.url); got != tc.want {
+			t.Errorf("IsTikTokURL(%q) = %v, want %v", tc.url, got, tc.want)
+		}
 	}
 }

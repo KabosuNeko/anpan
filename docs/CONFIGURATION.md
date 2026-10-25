@@ -88,7 +88,7 @@ Press `Ctrl+S` from the main screen or result screen to open the 4-tab compact c
 
 ---
 
-### Multi-File Post Selector (Pixiv / Kemono / Coomer / Archive.org)
+### Multi-File Post Selector (Pixiv / Imgur / Kemono / Instagram / TikTok / Archive.org)
 | Key | Action |
 | :--- | :--- |
 | `↑` / `↓` | Move cursor between "all files" and each attachment |

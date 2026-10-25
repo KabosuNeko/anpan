@@ -12,6 +12,7 @@ var knownHosts = []string{
 	"instagram.com",
 	"threads.net", "threads.com",
 	"tiktok.com",
+	"tiktokv.com",
 	"vimeo.com",
 	"twitch.tv",
 	"reddit.com",
@@ -89,6 +90,21 @@ func IsLikelyTarget(input string) bool {
 		return false
 	}
 	return u.Scheme == "http" || u.Scheme == "https"
+}
+
+// IsTikTokURL reports whether rawURL belongs to a TikTok share domain.
+func IsTikTokURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, h := range []string{"tiktok.com", "tiktokv.com"} {
+		if host == h || strings.HasSuffix(host, "."+h) {
+			return true
+		}
+	}
+	return false
 }
 
 func IsPlaylistURL(rawURL string) bool {
