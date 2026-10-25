@@ -42,6 +42,21 @@ type tiktokPageData struct {
 // ProbeTikTokPhotos returns photo-slide posts. yt-dlp solves TikTok's JS challenge,
 // so its saved page dump is the only reliable place to read imagePost data.
 func ProbeTikTokPhotos(ctx context.Context, ytdlpBin, rawURL string) (*ArchivePost, error) {
+	fetchURL := tiktokFetchURL(rawURL)
+
+	post, err := probeTikTokPage(ctx, ytdlpBin, fetchURL, rawURL)
+	if post != nil || err == nil {
+		return post, err
+	}
+	if fetchURL != rawURL {
+		if post, rawErr := probeTikTokPage(ctx, ytdlpBin, rawURL, rawURL); rawErr == nil {
+			return post, nil
+		}
+	}
+	return nil, err
+}
+
+func probeTikTokPage(ctx context.Context, ytdlpBin, fetchURL, webpageURL string) (*ArchivePost, error) {
 	dir, err := os.MkdirTemp("", "anpan-tiktok-*")
 	if err != nil {
 		return nil, err
@@ -49,7 +64,7 @@ func ProbeTikTokPhotos(ctx context.Context, ytdlpBin, rawURL string) (*ArchivePo
 	defer os.RemoveAll(dir)
 
 	cmd := exec.CommandContext(ctx, ytdlpBin,
-		"--write-pages", "--skip-download", "--ignore-no-formats-error", "--no-warnings", "--no-playlist", rawURL)
+		"--write-pages", "--skip-download", "--ignore-no-formats-error", "--no-warnings", "--no-playlist", fetchURL)
 	cmd.Dir = dir
 	cmd.Stdout = io.Discard
 	var stderr bytes.Buffer
@@ -62,7 +77,7 @@ func ProbeTikTokPhotos(ctx context.Context, ytdlpBin, rawURL string) (*ArchivePo
 		if readErr != nil {
 			continue
 		}
-		post, parseErr := parseTikTokPhotoPage(data, rawURL)
+		post, parseErr := parseTikTokPhotoPage(data, webpageURL)
 		if parseErr == nil && post != nil {
 			return post, nil
 		}
@@ -158,17 +173,42 @@ func pickTikTokImageURL(urls []string) string {
 	return ""
 }
 
-func tiktokIDFromURL(rawURL string) string {
+// tiktokFetchURL uses TikTok's canonical video path, which serves post data even for /photo/ URLs.
+func tiktokFetchURL(rawURL string) string {
+	if id := tiktokPostID(rawURL); id != "" {
+		return "https://www.tiktok.com/@i/video/" + id
+	}
+	return rawURL
+}
+
+func tiktokPostID(rawURL string) string {
 	for _, marker := range []string{"/video/", "/photo/"} {
 		if i := strings.LastIndex(rawURL, marker); i >= 0 {
 			id := rawURL[i+len(marker):]
 			if j := strings.IndexAny(id, "/?#"); j >= 0 {
 				id = id[:j]
 			}
-			if id != "" {
-				return sanitizeFilename(id)
+			if id == "" {
+				continue
+			}
+			allDigits := true
+			for _, r := range id {
+				if r < '0' || r > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				return id
 			}
 		}
+	}
+	return ""
+}
+
+func tiktokIDFromURL(rawURL string) string {
+	if id := tiktokPostID(rawURL); id != "" {
+		return id
 	}
 	return "post"
 }

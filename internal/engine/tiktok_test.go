@@ -44,3 +44,19 @@ func TestParseTikTokPhotoPageVideoOnly(t *testing.T) {
 		t.Fatalf("expected no photo post, got %+v", post)
 	}
 }
+
+func TestTikTokFetchURL(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"https://www.tiktok.com/@user/photo/7699082500143861023", "https://www.tiktok.com/@i/video/7699082500143861023"},
+		{"https://www.tiktok.com/@user/video/7699082500143861023?lang=en", "https://www.tiktok.com/@i/video/7699082500143861023"},
+		{"https://vt.tiktok.com/ZS123/", "https://vt.tiktok.com/ZS123/"},
+	}
+	for _, tc := range cases {
+		if got := tiktokFetchURL(tc.in); got != tc.want {
+			t.Errorf("tiktokFetchURL(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
