@@ -87,3 +87,12 @@ func TestRenderFooterHintsSingleLine(t *testing.T) {
 		t.Errorf("Tier 2 hints width %d exceeds 36", lipgloss.Width(rTier2))
 	}
 }
+
+func TestRenderTrayInputNarrowNoPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("RenderTrayInput panicked at narrow width: %v", r)
+		}
+	}()
+	_ = RenderTrayInput("url", 6, "", "bake", true)
+}

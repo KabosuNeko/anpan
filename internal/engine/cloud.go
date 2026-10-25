@@ -25,7 +25,6 @@ var (
 type CloudDirectFile struct {
 	URL      string
 	Filename string
-	Size     *int64
 }
 
 func IsPixeldrainListURL(rawURL string) bool {
@@ -72,7 +71,6 @@ func ProbePixeldrainList(ctx context.Context, rawURL string) (*ArchivePost, erro
 		Files []struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
-			Size int64  `json:"size"`
 		} `json:"files"`
 	}
 
@@ -127,18 +125,15 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 				if resp.StatusCode == http.StatusOK {
 					var info struct {
 						Name string `json:"name"`
-						Size int64  `json:"size"`
 					}
 					if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
 						filename := sanitizeFilename(info.Name)
 						if filename == "" {
 							filename = fmt.Sprintf("pixeldrain_%s", id)
 						}
-						size := info.Size
 						return &CloudDirectFile{
 							URL:      fmt.Sprintf("https://pixeldrain.com/api/file/%s?download", id),
 							Filename: filename,
-							Size:     &size,
 						}, nil
 					}
 				}
@@ -165,15 +160,9 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 				if filename == "" {
 					filename = fmt.Sprintf("gdrive_%s", id)
 				}
-				var size *int64
-				if resp.ContentLength > 0 {
-					s := resp.ContentLength
-					size = &s
-				}
 				return &CloudDirectFile{
 					URL:      directURL,
 					Filename: filename,
-					Size:     size,
 				}, nil
 			}
 		}
@@ -201,7 +190,7 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 	if mediafireRegex.MatchString(trimmed) {
 		req, _ := http.NewRequestWithContext(reqCtx, "GET", trimmed, nil)
 		if req != nil {
-			req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+			req.Header.Set("User-Agent", browserUserAgent)
 			if resp, err := client.Do(req); err == nil {
 				defer resp.Body.Close()
 				data, _ := io.ReadAll(io.LimitReader(resp.Body, 256*1024))

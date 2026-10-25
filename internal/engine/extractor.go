@@ -109,6 +109,7 @@ func ProbeVideo(ctx context.Context, ytdlpBin string, rawURL string) (*ProbeResu
 	}
 	_ = tmpFile.Close()
 	if err := os.WriteFile(tmpFile.Name(), out, 0o644); err != nil {
+		_ = os.Remove(tmpFile.Name())
 		return nil, err
 	}
 

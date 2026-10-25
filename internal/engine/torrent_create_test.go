@@ -67,3 +67,28 @@ func TestCreateTorrentDirectory(t *testing.T) {
 		t.Errorf("expected outTorrent %s, got %s", outTorrent, created.TorrentPath)
 	}
 }
+
+func TestCreateTorrentSkipsHiddenFiles(t *testing.T) {
+	srcDir := t.TempDir()
+	visible := []byte("visible content")
+	if err := os.WriteFile(filepath.Join(srcDir, "visible.txt"), visible, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, ".env"), []byte("SECRET=1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(srcDir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcDir, ".git", "config"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := CreateTorrent(srcDir, filepath.Join(t.TempDir(), "out.torrent"), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.TotalBytes != int64(len(visible)) {
+		t.Fatalf("hidden files leaked into torrent: expected %d bytes, got %d", len(visible), created.TotalBytes)
+	}
+}

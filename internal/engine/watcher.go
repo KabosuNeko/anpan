@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,23 +38,34 @@ func StartWatcher(ctx context.Context, cfg WatcherConfig) error {
 	if err := os.MkdirAll(processedDir, 0755); err != nil {
 		return fmt.Errorf("create processed directory: %w", err)
 	}
+	failedDir := filepath.Join(cfg.WatchDir, ".failed")
+	if err := os.MkdirAll(failedDir, 0755); err != nil {
+		return fmt.Errorf("create failed directory: %w", err)
+	}
 
 	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 
-	_ = scanWatchDir(ctx, cfg, processedDir)
+	var wg sync.WaitGroup
+	var inFlight sync.Map
+	scan := func() {
+		scanWatchDir(ctx, cfg, processedDir, failedDir, &inFlight, &wg)
+	}
+
+	scan()
 
 	for {
 		select {
 		case <-ctx.Done():
+			wg.Wait()
 			return ctx.Err()
 		case <-ticker.C:
-			_ = scanWatchDir(ctx, cfg, processedDir)
+			scan()
 		}
 	}
 }
 
-func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir string) error {
+func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir, failedDir string, inFlight *sync.Map, wg *sync.WaitGroup) error {
 	entries, err := os.ReadDir(cfg.WatchDir)
 	if err != nil {
 		return err
@@ -64,72 +76,93 @@ func scanWatchDir(ctx context.Context, cfg WatcherConfig, processedDir string) e
 			continue
 		}
 		name := entry.Name()
-		if strings.HasPrefix(name, ".") {
+		if strings.HasPrefix(name, ".") || !IsWatchCandidate(name) {
+			continue
+		}
+		if _, loaded := inFlight.LoadOrStore(name, true); loaded {
 			continue
 		}
 
 		filePath := filepath.Join(cfg.WatchDir, name)
-		if !IsWatchCandidate(name) {
-			continue
-		}
-
-		targetURI, err := extractTargetFromWatchFile(filePath)
-		if err != nil || targetURI == "" {
-			if cfg.OnError != nil {
-				cfg.OnError(name, fmt.Errorf("extract target: %w", err))
-			}
-			continue
-		}
-
-		dest := cfg.OutDir
-		if dest == "" {
-			dest = cfg.WatchDir
-		}
-
-		ariaBin, err := FindAria2c()
-		if err != nil {
-			if cfg.OnError != nil {
-				cfg.OnError(name, fmt.Errorf("aria2c missing: %w", err))
-			}
-			continue
-		}
-
-		var bakeErr error
-		if strings.HasPrefix(strings.ToLower(targetURI), "magnet:") || strings.HasSuffix(strings.ToLower(targetURI), ".torrent") {
-			_, bakeErr = BakeTorrentDownload(ctx, TorrentDownloadOptions{
-				Aria2cBin:  ariaBin,
-				Target:     targetURI,
-				OutputDir:  dest,
-				SpeedLimit: cfg.Aria2cLimit,
-			}, BakeHandlers{})
-		} else {
-			conns := cfg.Connections
-			if conns <= 0 {
-				conns = 8
-			}
-			_, bakeErr = BakeDirectDownload(ctx, DirectDownloadOptions{
-				Aria2cBin:   ariaBin,
-				URL:         targetURI,
-				OutputDir:   dest,
-				Connections: conns,
-				SpeedLimit:  cfg.Aria2cLimit,
-			}, BakeHandlers{})
-		}
-		if bakeErr != nil {
-			if cfg.OnError != nil {
-				cfg.OnError(name, bakeErr)
-			}
-			continue
-		}
-
-		destProcessed := filepath.Join(processedDir, fmt.Sprintf("%d_%s", time.Now().Unix(), name))
-		_ = os.Rename(filePath, destProcessed)
-
-		if cfg.OnDownloadDone != nil {
-			cfg.OnDownloadDone(name, targetURI)
-		}
+		wg.Add(1)
+		go func(name, filePath string) {
+			defer wg.Done()
+			defer inFlight.Delete(name)
+			processWatchFile(ctx, cfg, processedDir, failedDir, name, filePath)
+		}(name, filePath)
 	}
 	return nil
+}
+
+func processWatchFile(ctx context.Context, cfg WatcherConfig, processedDir, failedDir, name, filePath string) {
+	reportError := func(err error) {
+		if cfg.OnError != nil {
+			cfg.OnError(name, fmt.Errorf("%w (moved to %s)", err, failedDir))
+		}
+	}
+	quarantine := func() {
+		dest := filepath.Join(failedDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), name))
+		_ = os.Rename(filePath, dest)
+	}
+
+	targetURI, err := extractTargetFromWatchFile(filePath)
+	if err != nil || targetURI == "" {
+		if err == nil {
+			err = fmt.Errorf("no target found in file")
+		}
+		reportError(fmt.Errorf("extract target: %w", err))
+		quarantine()
+		return
+	}
+
+	dest := cfg.OutDir
+	if dest == "" {
+		dest = cfg.WatchDir
+	}
+
+	ariaBin, err := FindAria2c()
+	if err != nil {
+		reportError(fmt.Errorf("aria2c missing: %w", err))
+		quarantine()
+		return
+	}
+
+	var bakeErr error
+	if strings.HasPrefix(strings.ToLower(targetURI), "magnet:") || strings.HasSuffix(strings.ToLower(targetURI), ".torrent") {
+		_, bakeErr = BakeTorrentDownload(ctx, TorrentDownloadOptions{
+			Aria2cBin:  ariaBin,
+			Target:     targetURI,
+			OutputDir:  dest,
+			SpeedLimit: cfg.Aria2cLimit,
+		}, BakeHandlers{})
+	} else {
+		conns := cfg.Connections
+		if conns <= 0 {
+			conns = 8
+		}
+		_, bakeErr = BakeDirectDownload(ctx, DirectDownloadOptions{
+			Aria2cBin:   ariaBin,
+			URL:         targetURI,
+			OutputDir:   dest,
+			Connections: conns,
+			SpeedLimit:  cfg.Aria2cLimit,
+		}, BakeHandlers{})
+	}
+	if bakeErr != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		reportError(bakeErr)
+		quarantine()
+		return
+	}
+
+	destProcessed := filepath.Join(processedDir, fmt.Sprintf("%d_%s", time.Now().UnixNano(), name))
+	_ = os.Rename(filePath, destProcessed)
+
+	if cfg.OnDownloadDone != nil {
+		cfg.OnDownloadDone(name, targetURI)
+	}
 }
 
 // IsWatchCandidate checks if a file extension is supported for auto-downloading.

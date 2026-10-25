@@ -55,7 +55,6 @@ var timeRangeRegex = regexp.MustCompile(`(?i)(?:^|\s+)((?:\d{1,2}:)?\d{1,2}:\d{2
 type ParsedInput struct {
 	CleanURL  string
 	TimeRange string
-	TimeLabel string
 }
 
 func ParseURLInput(input string) ParsedInput {
@@ -73,7 +72,6 @@ func ParseURLInput(input string) ParsedInput {
 	return ParsedInput{
 		CleanURL:  cleanURL,
 		TimeRange: start + "-" + end,
-		TimeLabel: start + " → " + end,
 	}
 }
 

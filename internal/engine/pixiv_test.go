@@ -30,6 +30,7 @@ func TestIsPixivURL(t *testing.T) {
 }
 
 func TestProbePixivPostLive(t *testing.T) {
+	skipIfShort(t)
 	ctx := context.Background()
 	post, err := ProbePixivPost(ctx, "https://www.pixiv.net/artworks/114999991")
 	if err != nil {

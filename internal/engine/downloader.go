@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -62,7 +63,7 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 			cleanRange := strings.ReplaceAll(strings.ReplaceAll(opts.TimeRange, ":", "."), "*", ".")
 			trimSuffix = fmt.Sprintf(" [%s]", cleanRange)
 		}
-		outputTemplate = filepath.Join(opts.OutputDir, fmt.Sprintf("%%(title)s%s.%%(ext)s", trimSuffix))
+		outputTemplate = filepath.Join(opts.OutputDir, fmt.Sprintf("%%(title)s [%%(id)s]%s.%%(ext)s", trimSuffix))
 	}
 
 	portionArgs := opts.Portion.YtdlpArgs
@@ -149,10 +150,8 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	if err != nil {
 		return "", err
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return "", err
-	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return "", err
@@ -160,21 +159,10 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 
 	var finalFilepath string
 	var destinations []string
-	var lastStderr string
 	part := 0
 	totalParts := 1
 	lastDownloaded := float64(0)
 	var playlistItem, playlistTotal int
-
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "ERROR:") {
-				lastStderr = line
-			}
-		}
-	}()
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -284,7 +272,7 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	}
 
 	if err != nil {
-		clean := CleanErrorOutput(lastStderr)
+		clean := CleanErrorOutput(stderrBuf.String())
 		if clean != "" {
 			return "", fmt.Errorf("%s", clean)
 		}

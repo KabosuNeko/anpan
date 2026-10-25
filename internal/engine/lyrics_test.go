@@ -7,6 +7,7 @@ import (
 )
 
 func TestFetchLyricsLive(t *testing.T) {
+	skipIfShort(t)
 	ctx := context.Background()
 	res, err := FetchLyrics(ctx, "Jenny", "Studio Killers", 217)
 	if err != nil {

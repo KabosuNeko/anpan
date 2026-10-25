@@ -27,11 +27,12 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 - Converts any local file or directory into a valid bencoded `.torrent` file using pure Go (`crypto/sha1`).
 - Dynamically selects optimal piece lengths (256 KB up to 4 MB).
 - Injects public Tier-1 BitTorrent trackers (`opentrackr`, `openbittorrent`, `demonii`, `stealth.si`).
-- Launches active P2P DHT seeding with live upload progress, seeder counts, and seed ratio tracking.
+- Launches active P2P DHT seeding with live upload progress and peer counts.
 
 ### Automated Directory Watcher Daemon (`anpan watch`)
 - Monitors a designated folder for incoming `.torrent`, `.magnet`, `.txt`, or `.link` files.
 - Downloads files in the background, moves finished items to `.processed/`, and triggers desktop alerts.
+- Moves files that fail to `.failed/` instead of retrying them every scan.
 
 ---
 
@@ -76,7 +77,7 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 - **Extraction Mechanism**:
   - Parses post metadata and all attached media files via `/api/v1/...`.
   - Generates primary and mirror download endpoints to avoid 404s or rate limits.
-  - Displays an interactive multi-file selection checklist in the TUI (`Space` to toggle, `a` for select-all).
+  - Lists all attachments so you can download everything or pick one file.
 
 ### Internet Archive (archive.org)
 - **Supported URLs**:

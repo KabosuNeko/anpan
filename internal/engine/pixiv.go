@@ -41,7 +41,7 @@ func ProbePixivPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("User-Agent", browserUserAgent)
 	req.Header.Set("Referer", "https://www.pixiv.net/")
 
 	resp, err := client.Do(req)
@@ -89,7 +89,7 @@ func ProbePixivPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		pagesURL := fmt.Sprintf("https://www.pixiv.net/ajax/illust/%s/pages", id)
 		pReq, err := http.NewRequestWithContext(reqCtx, "GET", pagesURL, nil)
 		if err == nil {
-			pReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+			pReq.Header.Set("User-Agent", browserUserAgent)
 			pReq.Header.Set("Referer", "https://www.pixiv.net/")
 			if pResp, err := client.Do(pReq); err == nil {
 				defer pResp.Body.Close()
@@ -113,7 +113,7 @@ func ProbePixivPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 							files = append(files, ArchiveFile{
 								Name:    filename,
 								URL:     origURL,
-								Headers: []string{"Referer: https://www.pixiv.net/", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+								Headers: []string{"Referer: https://www.pixiv.net/", "User-Agent: " + browserUserAgent},
 							})
 						}
 					}
@@ -132,7 +132,7 @@ func ProbePixivPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		files = append(files, ArchiveFile{
 			Name:    filename,
 			URL:     origURL,
-			Headers: []string{"Referer: https://www.pixiv.net/", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+			Headers: []string{"Referer: https://www.pixiv.net/", "User-Agent: " + browserUserAgent},
 		})
 	}
 

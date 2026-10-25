@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"runtime"
 
 	"github.com/KabosuNeko/anpan/internal/system"
@@ -80,44 +78,21 @@ var updateCmd = &cobra.Command{
 		}
 		tmpArchive.Close()
 
-		tmpExtract, err := os.MkdirTemp("", "anpan-extract-*")
-		if err != nil {
+		sumsURL := fmt.Sprintf("https://github.com/KabosuNeko/anpan/releases/download/v%s/sha256sums.txt", res.LatestVersion)
+		if err := verifySHA256(tmpArchive.Name(), sumsURL, assetName, "anpan/"+Version); err != nil {
 			return err
 		}
-		defer os.RemoveAll(tmpExtract)
 
-		if osName == "windows" {
-			psCmd := exec.Command("powershell", "-Command", fmt.Sprintf("Expand-Archive -Path '%s' -DestinationPath '%s' -Force", tmpArchive.Name(), tmpExtract))
-			if err := psCmd.Run(); err != nil {
-				return fmt.Errorf("powershell unzip failed: %w", err)
-			}
-		} else {
-			tarCmd := exec.Command("tar", "-xzf", tmpArchive.Name(), "-C", tmpExtract)
-			if err := tarCmd.Run(); err != nil {
-				return fmt.Errorf("tar extract failed: %w", err)
-			}
-		}
-
-		extractedBin := filepath.Join(tmpExtract, "anpan")
-		if osName == "windows" {
-			extractedBin += ".exe"
-		}
-
-		if _, err := os.Stat(extractedBin); err != nil {
-			return fmt.Errorf("binary not found in archive: %w", err)
+		binary, err := extractBinary(tmpArchive.Name())
+		if err != nil {
+			return err
 		}
 
 		oldPath := execPath + ".old"
 		_ = os.Remove(oldPath)
 		_ = os.Rename(execPath, oldPath)
 
-		input, err := os.ReadFile(extractedBin)
-		if err != nil {
-			_ = os.Rename(oldPath, execPath)
-			return err
-		}
-
-		if err := os.WriteFile(execPath, input, 0o755); err != nil {
+		if err := os.WriteFile(execPath, binary, 0o755); err != nil {
 			_ = os.Rename(oldPath, execPath)
 			return fmt.Errorf("failed to write binary (try running with sudo?): %w", err)
 		}

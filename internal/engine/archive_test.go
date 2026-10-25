@@ -86,3 +86,12 @@ func TestProbeArchivePostLive(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeFilenameControls(t *testing.T) {
+	if got := sanitizeFilename("a\nb\rc"); got != "a_b_c" {
+		t.Errorf("control characters not replaced: %q", got)
+	}
+	if got := sanitizeFilename(".."); got != "" {
+		t.Errorf("dot-dot must be rejected, got %q", got)
+	}
+}

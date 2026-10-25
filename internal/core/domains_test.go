@@ -26,7 +26,7 @@ func TestIsKnownSite(t *testing.T) {
 
 func TestParseURLInput(t *testing.T) {
 	t1 := ParseURLInput("https://youtu.be/dQw4w9WgXcQ 01:20-03:45")
-	if t1.CleanURL != "https://youtu.be/dQw4w9WgXcQ" || t1.TimeRange != "01:20-03:45" || t1.TimeLabel != "01:20 → 03:45" {
+	if t1.CleanURL != "https://youtu.be/dQw4w9WgXcQ" || t1.TimeRange != "01:20-03:45" {
 		t.Errorf("ParseURLInput with range failed: %+v", t1)
 	}
 

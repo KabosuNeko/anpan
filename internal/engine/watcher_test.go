@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,5 +44,34 @@ func TestExtractTargetFromWatchFile(t *testing.T) {
 	resTxt, err := extractTargetFromWatchFile(txtFile)
 	if err != nil || resTxt != "magnet:?xt=urn:btih:12345" {
 		t.Errorf("expected magnet URI, got %s (err: %v)", resTxt, err)
+	}
+}
+
+func TestProcessWatchFileQuarantinesBadFile(t *testing.T) {
+	dir := t.TempDir()
+	processedDir := filepath.Join(dir, ".processed")
+	failedDir := filepath.Join(dir, ".failed")
+	if err := os.MkdirAll(processedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(failedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	badFile := filepath.Join(dir, "broken.txt")
+	if err := os.WriteFile(badFile, []byte("# only comments\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var reported error
+	cfg := WatcherConfig{WatchDir: dir, OnError: func(_ string, err error) { reported = err }}
+	processWatchFile(context.Background(), cfg, processedDir, failedDir, "broken.txt", badFile)
+
+	if reported == nil {
+		t.Fatal("expected an error callback for a file with no target")
+	}
+	entries, err := os.ReadDir(failedDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("expected one quarantined file, got %d (err %v)", len(entries), err)
 	}
 }

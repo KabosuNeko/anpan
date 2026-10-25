@@ -22,3 +22,15 @@ func TestIsImgurURL(t *testing.T) {
 		}
 	}
 }
+
+func TestIsImgurAlbumURL(t *testing.T) {
+	if !isImgurAlbumURL("https://imgur.com/a/abc123") {
+		t.Error("expected /a/ to be an album")
+	}
+	if !isImgurAlbumURL("https://imgur.com/gallery/abc123") {
+		t.Error("expected /gallery/ to be an album")
+	}
+	if isImgurAlbumURL("https://imgur.com/abc123") {
+		t.Error("expected a plain image URL not to be an album")
+	}
+}

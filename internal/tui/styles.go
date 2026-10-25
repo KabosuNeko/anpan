@@ -81,7 +81,7 @@ func ApplyTheme(theme string) {
 
 func RenderTrayInput(title string, totalWidth int, inputContent string, actionLabel string, actionDim bool) string {
 	btnW := len(actionLabel) + 4
-	leftW := totalWidth - btnW
+	leftW := max(totalWidth-btnW, 2)
 	titleW := runewidth.StringWidth(title)
 	leftInner := max(leftW-titleW-4, 1)
 

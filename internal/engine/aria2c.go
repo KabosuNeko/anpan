@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -147,8 +148,6 @@ func directArgs(outputDir string, connections int, extra ...string) []string {
 		"--max-tries=2",
 		"--retry-wait=1",
 		"--summary-interval=1",
-		"--auto-file-renaming=false",
-		"--allow-overwrite=true",
 	)
 }
 
@@ -294,10 +293,8 @@ func runAria2Process(
 	if err != nil {
 		return "", err
 	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return "", err
-	}
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Start(); err != nil {
 		return "", err
@@ -308,16 +305,6 @@ func runAria2Process(
 		resolvedFile = filepath.Join(outputDir, fallbackFilename)
 	}
 	var lastAriaError string
-
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.Contains(line, "[ERROR]") {
-				lastAriaError = line
-			}
-		}
-	}()
 
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -358,6 +345,11 @@ func runAria2Process(
 	}
 
 	err = cmd.Wait()
+	for _, line := range strings.Split(stderrBuf.String(), "\n") {
+		if strings.Contains(line, "[ERROR]") {
+			lastAriaError = strings.TrimSpace(line)
+		}
+	}
 	if ctx.Err() != nil {
 		return "", fmt.Errorf("download cancelled")
 	}
@@ -379,7 +371,7 @@ func runAria2Process(
 func formatAriaError(code int, rawErr string) string {
 	switch code {
 	case 2:
-		return "Connection timed out. Storage server (n1-n4) is currently down or unresponsive."
+		return "Connection timed out."
 	case 3:
 		return "File not found on remote server (HTTP 404)."
 	case 9:
