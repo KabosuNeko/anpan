@@ -776,3 +776,57 @@ func TestAppInitialOutDirWins(t *testing.T) {
 		t.Fatalf("expected -o dir %q, got %q", dir, got.chosenDest)
 	}
 }
+
+func TestAppTextInputsAcceptJK(t *testing.T) {
+	m := NewModel("0.0.0-test", "", "")
+	m.stage = StageInput
+	m.urlInput.Reset()
+	m.urlInput.Focus()
+	for _, ch := range []rune{'j', 'k'} {
+		next, _ := m.Update(tea.KeyPressMsg{Code: ch, Text: string(ch)})
+		m = next.(Model)
+	}
+	if m.urlInput.Value() != "jk" {
+		t.Fatalf("main input should accept j/k, got %q", m.urlInput.Value())
+	}
+
+	m2 := NewModel("0.0.0-test", "", "")
+	m2.stage = StageSearch
+	m2.browseRegion = "search"
+	m2.searchHistory = []string{"older query"}
+	m2.searchHistoryPos = -1
+	m2.browseInput.Reset()
+	m2.browseInput.Focus()
+	for _, ch := range []rune{'j', 'k'} {
+		next, _ := m2.Update(tea.KeyPressMsg{Code: ch, Text: string(ch)})
+		m2 = next.(Model)
+	}
+	if m2.browseInput.Value() != "jk" {
+		t.Fatalf("search input should accept j/k, got %q", m2.browseInput.Value())
+	}
+	if m2.searchHistoryPos != -1 {
+		t.Fatalf("typing j/k must not walk search history, pos=%d", m2.searchHistoryPos)
+	}
+}
+
+func TestAppCtrlJKStepsSearchHistory(t *testing.T) {
+	m := NewModel("0.0.0-test", "", "")
+	m.stage = StageSearch
+	m.browseRegion = "search"
+	m.searchHistory = []string{"newest query", "older query"}
+	m.searchHistoryPos = -1
+	m.browseInput.Reset()
+	m.browseInput.Focus()
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
+	m = next.(Model)
+	if m.browseInput.Value() != "newest query" {
+		t.Fatalf("ctrl+k should recall the newest search, got %q", m.browseInput.Value())
+	}
+
+	next, _ = m.Update(tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl})
+	m = next.(Model)
+	if m.browseInput.Value() != "" {
+		t.Fatalf("ctrl+j should return to the draft, got %q", m.browseInput.Value())
+	}
+}

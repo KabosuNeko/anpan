@@ -1299,7 +1299,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case "up", "k":
+		case "up", "ctrl+k":
 			if m.stage == StageSearch {
 				if m.browseRegion == "search" {
 					m.stepSearchHistory(true)
@@ -1345,7 +1345,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-		case "down", "j":
+		case "down", "ctrl+j":
 			if m.stage == StageSearch {
 				if m.browseRegion == "search" {
 					m.stepSearchHistory(false)

@@ -23,7 +23,7 @@
 | `Ctrl + E` (`^e`) | Open Torrent Creation & Seeding prompt |
 | `Ctrl + S` (`^s`) | Open Settings modal |
 | `Tab` | Paste URL / target from clipboard into input box |
-| `↑` / `↓` | Recall previous target input history |
+| `↑` / `↓` or `Ctrl+K` / `Ctrl+J` | Recall previous target input history |
 
 ---
 
@@ -32,7 +32,7 @@ The torrent search interface utilizes 100% of the terminal viewport with respons
 
 | Key | Context | Action |
 | :--- | :--- | :--- |
-| `↑` / `↓` (`k` / `j`) | Results / Sidebar | Move item cursor |
+| `↑` / `↓` or `Ctrl+K` / `Ctrl+J` | Results / Sidebar | Move item cursor |
 | `←` / `→` (`h` / `l`) | Any | Switch focus between Sidebar, Search input, and Results |
 | `Tab` / `Shift + Tab` | Any | Cycle focus between UI regions |
 | `/` | Any | Instantly focus search input field |
