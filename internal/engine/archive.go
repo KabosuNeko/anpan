@@ -56,7 +56,8 @@ func ParseArchiveURL(rawURL string) *ParsedArchiveURL {
 
 var invalidCharRegex = regexp.MustCompile(`[\x00-\x1f\x7f/\\?%*:|"<>]+`)
 
-func sanitizeFilename(name string) string {
+// SanitizeFilename strips path separators and control characters so name is safe as a single file name.
+func SanitizeFilename(name string) string {
 	clean := strings.TrimSpace(invalidCharRegex.ReplaceAllString(name, "_"))
 	if clean == "." || clean == ".." {
 		return ""
@@ -139,7 +140,7 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 				fileName = "file"
 			}
 		}
-		cleanName := sanitizeFilename(fileName)
+		cleanName := SanitizeFilename(fileName)
 		if cleanName == "" {
 			cleanName = "file"
 		}
@@ -173,7 +174,7 @@ func ProbeArchivePost(ctx context.Context, rawURL string) (*ArchivePost, error) 
 	if strings.TrimSpace(rawTitle) == "" {
 		rawTitle = fmt.Sprintf("%s post by %s", parsed.Service, parsed.User)
 	}
-	cleanTitle := sanitizeFilename(strings.TrimSpace(rawTitle))
+	cleanTitle := SanitizeFilename(strings.TrimSpace(rawTitle))
 	if cleanTitle == "" {
 		cleanTitle = "Archive Post"
 	}

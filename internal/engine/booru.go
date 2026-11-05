@@ -123,7 +123,7 @@ func ProbeBooruPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 
 	cleanTitle := fmt.Sprintf("%s_%s", service, postID)
 	if author != "" {
-		cleanTitle = fmt.Sprintf("[%s] %s_%s", sanitizeFilename(author), service, postID)
+		cleanTitle = fmt.Sprintf("[%s] %s_%s", SanitizeFilename(author), service, postID)
 	}
 
 	fileName := fmt.Sprintf("%s_%s%s", service, postID, ext)

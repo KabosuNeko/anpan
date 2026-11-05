@@ -1,6 +1,7 @@
 package system
 
 import (
+	"os"
 	"testing"
 )
 
@@ -80,5 +81,28 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if !loaded.AutoPaste {
 		t.Errorf("expected AutoPaste true, got false")
+	}
+}
+
+func TestLoadConfigKeepsUnparseableFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	if err := os.MkdirAll(configDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	broken := []byte(`{"outDir": "/my/dir",}`)
+	if err := os.WriteFile(configPath(), broken, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_ = LoadConfig()
+	if err := SaveConfig(DefaultConfig()); err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := os.ReadFile(configPath() + ".bad")
+	if err != nil || string(kept) != string(broken) {
+		t.Errorf("broken config should be kept as .bad, got %q, err %v", kept, err)
 	}
 }

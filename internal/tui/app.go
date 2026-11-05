@@ -156,6 +156,10 @@ type seedCreatedMsg struct {
 
 type toastClearMsg struct{}
 
+type seedFailedMsg struct {
+	err error
+}
+
 type bakeProgressMsg engine.BakeProgress
 
 type bakeProcessingMsg struct{}
@@ -267,6 +271,15 @@ type Model struct {
 
 	// Final outcome
 	FinalPath string
+	// Failed holds the error text when the run ended in StageError.
+	Failed string
+	// Cancelled is set when the user quit with ctrl+c.
+	Cancelled bool
+	// ExitWhenDone quits the program once the target is baked or has failed (batch mode).
+	ExitWhenDone bool
+
+	// background tracks work (lyrics) that must finish before the process exits.
+	background *sync.WaitGroup
 
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -318,6 +331,7 @@ func NewModel(version, initialURL, initialOutDir string) Model {
 		stage:            StageInput,
 		config:           cfg,
 		bridge:           &ProgramBridge{},
+		background:       &sync.WaitGroup{},
 		history:          system.LoadHistory(),
 		historyPos:       -1,
 		searchHistoryPos: -1,
@@ -775,24 +789,694 @@ func (m *Model) startSeedingProcess(torrentPath, dataDir string) tea.Cmd {
 	return func() tea.Msg {
 		aria2c, err := engine.FindAria2c()
 		if err != nil {
-			return nil
+			return seedFailedMsg{err: err}
 		}
 		handlers := engine.BakeHandlers{
 			OnProgress: func(p engine.BakeProgress) {
 				m.bridge.Send(bakeProgressMsg(p))
 			},
 		}
-		_, _ = engine.BakeTorrentSeed(seedCtx, engine.TorrentSeedOptions{
+		_, err = engine.BakeTorrentSeed(seedCtx, engine.TorrentSeedOptions{
 			Aria2cBin:   aria2c,
 			TorrentPath: torrentPath,
 			OutputDir:   dataDir,
 			UploadLimit: m.config.SpeedLimit,
 		}, handlers)
+		if err != nil && seedCtx.Err() == nil {
+			return seedFailedMsg{err: err}
+		}
 		return nil
 	}
 }
 
+// updateKey handles key presses; handled is false when the key should reach the focused text input.
+func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) {
+	switch msg.String() {
+	case "ctrl+c":
+		m.Cancelled = true
+		m.cancelCtx()
+		m.cleanupProbeCache()
+		if m.seedingCancel != nil {
+			m.seedingCancel()
+		}
+		return m, tea.Quit, true
+
+	case "ctrl+s":
+		if m.stage == StageInput || m.stage == StageBaked {
+			m.stage = StageSettings
+			m.settingsTab = 0
+			m.settingsIndex = 0
+			return m, nil, true
+		}
+
+	case "ctrl+f":
+		m.stage = StageSearch
+		m.browseCategory = m.config.DefaultSearchCat
+		m.browseRegion = "search"
+		m.browseInput.Focus()
+		m.browsePage = 1
+		if len(m.browseResults) == 0 {
+			m.browseSearching = true
+			return m, tea.Batch(m.spinner.Tick, m.startSearch("", m.browseCategory, 1)), true
+		}
+		return m, nil, true
+
+	case "ctrl+e":
+		m.stage = StageSeedPrompt
+		m.seedInput.Reset()
+		m.seedInput.Focus()
+		return m, nil, true
+
+	case "esc":
+		if m.stage == StageSearch {
+			if m.browseRegion == "detail" {
+				m.browseRegion = "content"
+				m.browseDetail = nil
+				return m, nil, true
+			}
+			if m.browseRegion == "search" {
+				m.browseRegion = "content"
+				m.browseInput.Blur()
+				return m, nil, true
+			}
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageSeedPrompt {
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageSeeding {
+			if m.seedingCancel != nil {
+				m.seedingCancel()
+			}
+			m.seedingActive = false
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageSettings {
+			if m.editingDir {
+				m.editingDir = false
+				return m, nil, true
+			}
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageDest {
+			if m.isCustomDest {
+				m.isCustomDest = false
+				return m, nil, true
+			}
+			if len(m.portions) > 0 {
+				m.stage = StageSelecting
+				return m, nil, true
+			}
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageProbing || m.stage == StageBaking {
+			m.cancelCtx()
+			m.ctx, m.cancelCtx = context.WithCancel(context.Background())
+			m.processing = false
+			m.stage = StageInput
+			return m, nil, true
+		}
+		if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt || m.stage == StageSelecting {
+			m.cleanupProbeCache()
+			m.stage = StageInput
+			return m, nil, true
+		}
+
+	case "tab":
+		if m.stage == StageSettings && !m.editingDir {
+			m.settingsTab = (m.settingsTab + 1) % len(SettingCategories)
+			m.settingsIndex = 0
+			return m, nil, true
+		}
+		if m.stage == StageSearch {
+			m.cycleBrowseFocus(true)
+			return m, nil, true
+		}
+		if m.stage == StageInput && m.clipboardURL != "" {
+			m.urlInput.SetValue(m.clipboardURL)
+			m.historyPos = -1
+			return m, nil, true
+		}
+
+	case "shift+tab":
+		if m.stage == StageSettings && !m.editingDir {
+			m.settingsTab = (m.settingsTab - 1 + len(SettingCategories)) % len(SettingCategories)
+			m.settingsIndex = 0
+			return m, nil, true
+		}
+		if m.stage == StageSearch {
+			m.cycleBrowseFocus(false)
+			return m, nil, true
+		}
+
+	case "d":
+		if m.stage == StageSearch {
+			if r, ok := m.selectedTorrent(); ok {
+				return m, m.beginTorrentDownload(r, false), true
+			}
+		}
+
+	case "D":
+		if m.stage == StageSearch {
+			if r, ok := m.selectedTorrent(); ok {
+				return m, m.beginTorrentDownload(r, true), true
+			}
+		}
+
+	case "i", "I":
+		if m.stage == StageSearch {
+			if m.browseRegion == "detail" {
+				m.browseRegion = "content"
+				m.browseDetail = nil
+				return m, nil, true
+			}
+			results := m.getFilteredBrowseResults()
+			if (m.browseRegion == "content" || m.browseRegion == "sidebar") && len(results) > m.browseCursor {
+				m.browseRegion = "detail"
+				selected := results[m.browseCursor]
+				m.browseDetail = &selected
+				return m, nil, true
+			}
+		}
+
+	case "f", "F":
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			switch m.browseMinSeeds {
+			case 0:
+				m.browseMinSeeds = 1
+			case 1:
+				m.browseMinSeeds = 5
+			case 5:
+				m.browseMinSeeds = 20
+			case 20:
+				m.browseMinSeeds = 0
+			default:
+				m.browseMinSeeds = 0
+			}
+			results := m.getFilteredBrowseResults()
+			if m.browseCursor >= len(results) {
+				if len(results) > 0 {
+					m.browseCursor = len(results) - 1
+				} else {
+					m.browseCursor = 0
+				}
+			}
+			if m.browseMinSeeds > 0 {
+				m.browseStatus = fmt.Sprintf("Filter: Seeders ≥ %d (%d items)", m.browseMinSeeds, len(results))
+			} else {
+				m.browseStatus = fmt.Sprintf("Filter: All seeds (%d items)", len(results))
+			}
+			return m, toastAfter(2 * time.Second), true
+		}
+
+	case "o", "O":
+		if m.stage == StageSearch {
+			if r, ok := m.selectedTorrent(); ok {
+				return m, m.beginTorrentDownload(r, true), true
+			}
+		}
+		if m.stage == StageDest && !m.isCustomDest {
+			m.isCustomDest = true
+			m.destInput.SetValue(m.outputDir())
+			m.destInput.Focus()
+			return m, nil, true
+		}
+
+	case "y", "Y":
+		if m.stage == StageSearch {
+			results := m.getFilteredBrowseResults()
+			if m.browseRegion == "content" && len(results) > m.browseCursor {
+				r := results[m.browseCursor]
+				_ = system.WriteClipboard(r.Magnet)
+				m.browseStatus = "Magnet copied to clipboard!"
+				return m, toastAfter(2 * time.Second), true
+			}
+			if m.browseRegion == "detail" && m.browseDetail != nil {
+				_ = system.WriteClipboard(m.browseDetail.Magnet)
+				m.browseStatus = "Magnet copied to clipboard!"
+				return m, toastAfter(2 * time.Second), true
+			}
+		}
+		if m.stage == StageSeeding && m.seedingMagnet != "" {
+			_ = system.WriteClipboard(m.seedingMagnet)
+			return m, nil, true
+		}
+
+	case "s":
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			switch m.browseSort {
+			case "seeds":
+				m.browseSort = "size"
+			case "size":
+				m.browseSort = "size-asc"
+			case "size-asc":
+				m.browseSort = "peers"
+			case "peers":
+				m.browseSort = "name"
+			case "name":
+				m.browseSort = "source"
+			case "source":
+				m.browseSort = "seeds"
+			default:
+				m.browseSort = "seeds"
+			}
+			engine.SortSearchResults(m.browseResults, m.browseSort)
+			m.browseStatus = "Sorted by " + FormatSortLabel(m.browseSort)
+			return m, toastAfter(2 * time.Second), true
+		}
+
+	case "[", "<", "p":
+		if m.stage == StageSettings && !m.editingDir {
+			m.settingsTab = (m.settingsTab - 1 + len(SettingCategories)) % len(SettingCategories)
+			m.settingsIndex = 0
+			return m, nil, true
+		}
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			if m.browsePage > 1 {
+				m.browsePage--
+				m.browseSearching = true
+				m.browseCursor = 0
+				return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)), true
+			}
+			return m, nil, true
+		}
+
+	case "]", ">", "n":
+		if m.stage == StageSettings && !m.editingDir {
+			m.settingsTab = (m.settingsTab + 1) % len(SettingCategories)
+			m.settingsIndex = 0
+			return m, nil, true
+		}
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			m.browsePage++
+			m.browseSearching = true
+			m.browseCursor = 0
+			return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)), true
+		}
+
+	case "1", "2", "3", "4":
+		if m.stage == StageSettings && !m.editingDir {
+			tIdx := int(msg.String()[0] - '1')
+			if tIdx >= 0 && tIdx < len(SettingCategories) {
+				m.settingsTab = tIdx
+				m.settingsIndex = 0
+				return m, nil, true
+			}
+		}
+
+	case "pgdown", "ctrl+d":
+		if m.stage == StageSearch && m.browseRegion == "content" {
+			results := m.getFilteredBrowseResults()
+			m.browseCursor += 10
+			if m.browseCursor >= len(results) {
+				m.browseCursor = len(results) - 1
+			}
+			if m.browseCursor < 0 {
+				m.browseCursor = 0
+			}
+			return m, nil, true
+		}
+
+	case "pgup", "ctrl+u":
+		if m.stage == StageSearch && m.browseRegion == "content" {
+			m.browseCursor -= 10
+			if m.browseCursor < 0 {
+				m.browseCursor = 0
+			}
+			return m, nil, true
+		}
+
+	case "home":
+		if m.stage == StageSearch && m.browseRegion == "content" {
+			m.browseCursor = 0
+			return m, nil, true
+		}
+
+	case "end":
+		if m.stage == StageSearch && m.browseRegion == "content" {
+			results := m.getFilteredBrowseResults()
+			if len(results) > 0 {
+				m.browseCursor = len(results) - 1
+			}
+			return m, nil, true
+		}
+
+	case "/":
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			m.browseRegion = "search"
+			m.browseInput.Focus()
+			return m, nil, true
+		}
+
+	case "enter":
+		switch m.stage {
+		case StageSearch:
+			if m.browseRegion == "search" {
+				q := strings.TrimSpace(m.browseInput.Value())
+				if q != "" {
+					if len(m.searchHistory) == 0 || m.searchHistory[0] != q {
+						m.searchHistory = append([]string{q}, m.searchHistory...)
+					}
+				}
+				m.searchHistoryPos = -1
+				m.draftSearch = ""
+				m.browseSearching = true
+				m.browseRegion = "content"
+				m.browseInput.Blur()
+				m.browsePage = 1
+				return m, tea.Batch(m.spinner.Tick, m.startSearch(q, m.browseCategory, 1)), true
+			}
+			if m.browseRegion == "sidebar" {
+				m.browseRegion = "content"
+				return m, nil, true
+			}
+			if r, ok := m.selectedTorrent(); ok {
+				return m, m.beginTorrentDownload(r, false), true
+			}
+			return m, nil, true
+
+		case StageSeedPrompt:
+			val := strings.TrimSpace(m.seedInput.Value())
+			if val == "" {
+				return m, nil, true
+			}
+			clean := core.CleanLocalPath(val)
+			if _, err := os.Stat(clean); err != nil {
+				m.stage = StageError
+				m.errText = fmt.Sprintf("Seed target not found: %s", clean)
+				return m, nil, true
+			}
+			m.stage = StageProbing
+			m.statusText = "creating .torrent and seeding…"
+			return m, tea.Batch(m.spinner.Tick, m.startSeed(clean)), true
+
+		case StageSettings:
+			if m.editingDir {
+				val := strings.TrimSpace(m.settingsDir.Value())
+				if val != "" {
+					m.config.OutDir = units.ResolveUserPath(val)
+					_ = system.SaveConfig(m.config)
+				}
+				m.editingDir = false
+				return m, nil, true
+			}
+			if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
+				m.settingsTab = 0
+			}
+			cat := SettingCategories[m.settingsTab]
+			if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
+				item := cat.Items[m.settingsIndex]
+				if item.Key == "outDir" {
+					m.editingDir = true
+					m.settingsDir.SetValue(m.config.OutDir)
+					m.settingsDir.Focus()
+					return m, nil, true
+				}
+				CycleConfig(&m.config, item.Key, 1)
+				_ = system.SaveConfig(m.config)
+			}
+			return m, nil, true
+
+		case StageInput:
+			val := strings.TrimSpace(m.urlInput.Value())
+			if val == "" {
+				return m, nil, true
+			}
+			system.AddToHistory(val)
+			m.history = system.LoadHistory()
+			m.historyPos = -1
+			m.stage = StageProbing
+			m.statusText = "probing target…"
+			return m, tea.Batch(m.spinner.Tick, m.startInspect(val)), true
+
+		case StageDirectPrompt:
+			if m.promptChoice == 0 {
+				if m.config.AskSaveDir && m.initialOutDir == "" {
+					m.promptDest(m.target.Filename, fmt.Sprintf("%d connections · direct file", m.config.Connections))
+					return m, nil, true
+				}
+				return m, m.bakeInto(m.outputDir(), 1), true
+			}
+			m.stage = StageInput
+			return m, nil, true
+
+		case StageTorrentPrompt:
+			if m.promptChoice == 0 {
+				if m.config.AskSaveDir && m.initialOutDir == "" {
+					m.promptDest(m.target.Name, "BitTorrent P2P transfer · aria2c")
+					return m, nil, true
+				}
+				return m, m.bakeInto(m.outputDir(), 1), true
+			}
+			m.stage = StageInput
+			return m, nil, true
+
+		case StagePlaylistPrompt:
+			if m.promptChoice == 0 {
+				m.isPlaylistMode = true
+				plPortions := engine.ExtractPlaylistPortions(&engine.ExtractPortionsOptions{
+					EmbedMetadata:  &m.config.EmbedMetadata,
+					VideoContainer: m.config.VideoContainer,
+					VideoCodec:     m.config.VideoCodec,
+					AudioFormat:    m.config.AudioFormat,
+				})
+				m.portions = plPortions
+				m.selectedPortion = 0
+				m.stage = StageSelecting
+				return m, nil, true
+			}
+			// Single track
+			m.isPlaylistMode = false
+			m.stage = StageProbing
+			m.statusText = "probing single track…"
+			return m, tea.Batch(m.spinner.Tick, m.startProbeVideo(m.target)), true
+
+		case StageSelecting:
+			if m.target != nil && m.target.Type == core.TargetArchive && m.archivePost != nil {
+				if m.selectedPortion == 0 {
+					// Download all files
+					m.selectedArchiveFiles = m.archivePost.Files
+				} else if m.selectedPortion-1 < len(m.archivePost.Files) {
+					// Download single file
+					m.selectedArchiveFiles = []engine.ArchiveFile{m.archivePost.Files[m.selectedPortion-1]}
+				}
+				if m.config.AskSaveDir && m.initialOutDir == "" {
+					m.promptDest(m.archivePost.Title, fmt.Sprintf("Archive batch (%d items)", len(m.selectedArchiveFiles)))
+					return m, nil, true
+				}
+				return m, m.bakeInto(m.outputDir(), len(m.selectedArchiveFiles)), true
+			}
+
+			if m.config.AskSaveDir && m.initialOutDir == "" {
+				m.promptDest(m.destTargetTitle, m.destTargetSub)
+				return m, nil, true
+			}
+			return m, m.bakeInto(m.outputDir(), 1), true
+
+		case StageDest:
+			if m.isCustomDest {
+				val := strings.TrimSpace(m.destInput.Value())
+				if val == "" {
+					val = m.config.OutDir
+				}
+				return m, m.bakeInto(units.ResolveUserPath(val), 1), true
+			}
+			opts := BuildDestOptions(m.outputDir())
+			if m.destIndex >= 0 && m.destIndex < len(opts) {
+				opt := opts[m.destIndex]
+				if opt.IsCustom {
+					m.isCustomDest = true
+					m.destInput.SetValue(m.outputDir())
+					m.destInput.Focus()
+					return m, nil, true
+				}
+				return m, m.bakeInto(opt.Path, 1), true
+			}
+		case StageBaked, StageError:
+			m.stage = StageInput
+			m.urlInput.Reset()
+			m.urlInput.Focus()
+			return m, nil, true
+		}
+
+	case "up", "ctrl+k":
+		if m.stage == StageSearch {
+			if m.browseRegion == "search" {
+				m.stepSearchHistory(true)
+				return m, nil, true
+			}
+			if m.browseRegion == "sidebar" {
+				return m, m.cycleCategory(-1), true
+			}
+			if m.browseRegion == "content" {
+				if m.browseCursor > 0 {
+					m.browseCursor--
+				} else if m.browseCursor == 0 {
+					m.browseRegion = "search"
+					m.browseInput.Focus()
+				}
+				return m, nil, true
+			}
+		}
+		if m.stage == StageInput {
+			m.stepURLHistory(true)
+			return m, nil, true
+		}
+		if m.stage == StageDest && !m.isCustomDest {
+			if m.destIndex > 0 {
+				m.destIndex--
+			}
+			return m, nil, true
+		}
+		if m.stage == StageSettings {
+			if !m.editingDir && m.settingsIndex > 0 {
+				m.settingsIndex--
+			}
+			return m, nil, true
+		}
+		if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt {
+			if m.promptChoice > 0 {
+				m.promptChoice--
+			}
+			return m, nil, true
+		}
+		if m.stage == StageSelecting && m.selectedPortion > 0 {
+			m.selectedPortion--
+			return m, nil, true
+		}
+
+	case "down", "ctrl+j":
+		if m.stage == StageSearch {
+			if m.browseRegion == "search" {
+				m.stepSearchHistory(false)
+				return m, nil, true
+			}
+			if m.browseRegion == "sidebar" {
+				return m, m.cycleCategory(1), true
+			}
+			if m.browseRegion == "content" {
+				results := m.getFilteredBrowseResults()
+				if m.browseCursor < len(results)-1 {
+					m.browseCursor++
+				}
+				return m, nil, true
+			}
+		}
+		if m.stage == StageInput {
+			m.stepURLHistory(false)
+			return m, nil, true
+		}
+		if m.stage == StageDest && !m.isCustomDest {
+			opts := BuildDestOptions(m.outputDir())
+			if m.destIndex < len(opts)-1 {
+				m.destIndex++
+			}
+			return m, nil, true
+		}
+		if m.stage == StageSettings {
+			if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
+				m.settingsTab = 0
+			}
+			cat := SettingCategories[m.settingsTab]
+			if !m.editingDir && m.settingsIndex < len(cat.Items)-1 {
+				m.settingsIndex++
+			}
+			return m, nil, true
+		}
+		if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt {
+			if m.promptChoice < 1 {
+				m.promptChoice++
+			}
+			return m, nil, true
+		}
+		if m.stage == StageSelecting && m.selectedPortion < len(m.portions)-1 {
+			m.selectedPortion++
+			return m, nil, true
+		}
+
+	case "left", "h":
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			if m.browseRegion == "content" {
+				m.browseRegion = "sidebar"
+				return m, nil, true
+			}
+		}
+		if m.stage == StageSettings && !m.editingDir {
+			if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
+				m.settingsTab = 0
+			}
+			cat := SettingCategories[m.settingsTab]
+			if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
+				item := cat.Items[m.settingsIndex]
+				CycleConfig(&m.config, item.Key, -1)
+				_ = system.SaveConfig(m.config)
+			}
+			return m, nil, true
+		}
+
+	case "right", "l", " ", "space":
+		if m.stage == StageSearch && m.browseRegion != "search" {
+			if m.browseRegion == "sidebar" {
+				m.browseRegion = "content"
+				return m, nil, true
+			}
+			if m.browseRegion == "content" {
+				results := m.getFilteredBrowseResults()
+				if len(results) > m.browseCursor {
+					m.browseRegion = "detail"
+					selected := results[m.browseCursor]
+					m.browseDetail = &selected
+					return m, nil, true
+				}
+			}
+			if m.browseRegion == "detail" {
+				m.browseRegion = "content"
+				m.browseDetail = nil
+				return m, nil, true
+			}
+		}
+		if m.stage == StageSettings && !m.editingDir {
+			if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
+				m.settingsTab = 0
+			}
+			cat := SettingCategories[m.settingsTab]
+			if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
+				item := cat.Items[m.settingsIndex]
+				CycleConfig(&m.config, item.Key, 1)
+				_ = system.SaveConfig(m.config)
+			}
+			return m, nil, true
+		}
+	}
+	return m, nil, false
+}
+
+// Update applies msg and, in batch mode, quits once the target has finished.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	nm := next.(Model)
+	if nm.ExitWhenDone && (nm.stage == StageBaked || nm.stage == StageError) {
+		if nm.stage == StageError {
+			nm.Failed = nm.errText
+		}
+		return nm, tea.Batch(cmd, tea.Quit)
+	}
+	return nm, cmd
+}
+
+// WaitBackground blocks until background work such as lyrics saving has finished.
+func (m Model) WaitBackground() {
+	if m.background != nil {
+		m.background.Wait()
+	}
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -807,647 +1491,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
-			m.cancelCtx()
-			m.cleanupProbeCache()
-			if m.seedingCancel != nil {
-				m.seedingCancel()
-			}
-			return m, tea.Quit
-
-		case "ctrl+s":
-			if m.stage == StageInput || m.stage == StageBaked {
-				m.stage = StageSettings
-				m.settingsTab = 0
-				m.settingsIndex = 0
-				return m, nil
-			}
-
-		case "ctrl+f":
-			m.stage = StageSearch
-			m.browseCategory = m.config.DefaultSearchCat
-			m.browseRegion = "search"
-			m.browseInput.Focus()
-			m.browsePage = 1
-			if len(m.browseResults) == 0 {
-				m.browseSearching = true
-				return m, tea.Batch(m.spinner.Tick, m.startSearch("", m.browseCategory, 1))
-			}
-			return m, nil
-
-		case "ctrl+e":
-			m.stage = StageSeedPrompt
-			m.seedInput.Reset()
-			m.seedInput.Focus()
-			return m, nil
-
-		case "esc":
-			if m.stage == StageSearch {
-				if m.browseRegion == "detail" {
-					m.browseRegion = "content"
-					m.browseDetail = nil
-					return m, nil
-				}
-				if m.browseRegion == "search" {
-					m.browseRegion = "content"
-					m.browseInput.Blur()
-					return m, nil
-				}
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageSeedPrompt {
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageSeeding {
-				if m.seedingCancel != nil {
-					m.seedingCancel()
-				}
-				m.seedingActive = false
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageSettings {
-				if m.editingDir {
-					m.editingDir = false
-					return m, nil
-				}
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageDest {
-				if m.isCustomDest {
-					m.isCustomDest = false
-					return m, nil
-				}
-				if len(m.portions) > 0 {
-					m.stage = StageSelecting
-					return m, nil
-				}
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageProbing || m.stage == StageBaking {
-				m.cancelCtx()
-				m.ctx, m.cancelCtx = context.WithCancel(context.Background())
-				m.processing = false
-				m.stage = StageInput
-				return m, nil
-			}
-			if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt || m.stage == StageSelecting {
-				m.cleanupProbeCache()
-				m.stage = StageInput
-				return m, nil
-			}
-
-		case "tab":
-			if m.stage == StageSettings && !m.editingDir {
-				m.settingsTab = (m.settingsTab + 1) % len(SettingCategories)
-				m.settingsIndex = 0
-				return m, nil
-			}
-			if m.stage == StageSearch {
-				m.cycleBrowseFocus(true)
-				return m, nil
-			}
-			if m.stage == StageInput && m.clipboardURL != "" {
-				m.urlInput.SetValue(m.clipboardURL)
-				m.historyPos = -1
-				return m, nil
-			}
-
-		case "shift+tab":
-			if m.stage == StageSettings && !m.editingDir {
-				m.settingsTab = (m.settingsTab - 1 + len(SettingCategories)) % len(SettingCategories)
-				m.settingsIndex = 0
-				return m, nil
-			}
-			if m.stage == StageSearch {
-				m.cycleBrowseFocus(false)
-				return m, nil
-			}
-
-		case "d":
-			if m.stage == StageSearch {
-				if r, ok := m.selectedTorrent(); ok {
-					return m, m.beginTorrentDownload(r, false)
-				}
-			}
-
-		case "D":
-			if m.stage == StageSearch {
-				if r, ok := m.selectedTorrent(); ok {
-					return m, m.beginTorrentDownload(r, true)
-				}
-			}
-
-		case "i", "I":
-			if m.stage == StageSearch {
-				if m.browseRegion == "detail" {
-					m.browseRegion = "content"
-					m.browseDetail = nil
-					return m, nil
-				}
-				results := m.getFilteredBrowseResults()
-				if (m.browseRegion == "content" || m.browseRegion == "sidebar") && len(results) > m.browseCursor {
-					m.browseRegion = "detail"
-					selected := results[m.browseCursor]
-					m.browseDetail = &selected
-					return m, nil
-				}
-			}
-
-		case "f", "F":
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				switch m.browseMinSeeds {
-				case 0:
-					m.browseMinSeeds = 1
-				case 1:
-					m.browseMinSeeds = 5
-				case 5:
-					m.browseMinSeeds = 20
-				case 20:
-					m.browseMinSeeds = 0
-				default:
-					m.browseMinSeeds = 0
-				}
-				results := m.getFilteredBrowseResults()
-				if m.browseCursor >= len(results) {
-					if len(results) > 0 {
-						m.browseCursor = len(results) - 1
-					} else {
-						m.browseCursor = 0
-					}
-				}
-				if m.browseMinSeeds > 0 {
-					m.browseStatus = fmt.Sprintf("Filter: Seeders ≥ %d (%d items)", m.browseMinSeeds, len(results))
-				} else {
-					m.browseStatus = fmt.Sprintf("Filter: All seeds (%d items)", len(results))
-				}
-				return m, toastAfter(2 * time.Second)
-			}
-
-		case "o", "O":
-			if m.stage == StageSearch {
-				if r, ok := m.selectedTorrent(); ok {
-					return m, m.beginTorrentDownload(r, true)
-				}
-			}
-			if m.stage == StageDest && !m.isCustomDest {
-				m.isCustomDest = true
-				m.destInput.SetValue(m.outputDir())
-				m.destInput.Focus()
-				return m, nil
-			}
-
-		case "y", "Y":
-			if m.stage == StageSearch {
-				results := m.getFilteredBrowseResults()
-				if m.browseRegion == "content" && len(results) > m.browseCursor {
-					r := results[m.browseCursor]
-					_ = system.WriteClipboard(r.Magnet)
-					m.browseStatus = "Magnet copied to clipboard!"
-					return m, toastAfter(2 * time.Second)
-				}
-				if m.browseRegion == "detail" && m.browseDetail != nil {
-					_ = system.WriteClipboard(m.browseDetail.Magnet)
-					m.browseStatus = "Magnet copied to clipboard!"
-					return m, toastAfter(2 * time.Second)
-				}
-			}
-			if m.stage == StageSeeding && m.seedingMagnet != "" {
-				_ = system.WriteClipboard(m.seedingMagnet)
-				return m, nil
-			}
-
-		case "s":
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				switch m.browseSort {
-				case "seeds":
-					m.browseSort = "size"
-				case "size":
-					m.browseSort = "size-asc"
-				case "size-asc":
-					m.browseSort = "peers"
-				case "peers":
-					m.browseSort = "name"
-				case "name":
-					m.browseSort = "source"
-				case "source":
-					m.browseSort = "seeds"
-				default:
-					m.browseSort = "seeds"
-				}
-				engine.SortSearchResults(m.browseResults, m.browseSort)
-				m.browseStatus = "Sorted by " + FormatSortLabel(m.browseSort)
-				return m, toastAfter(2 * time.Second)
-			}
-
-		case "[", "<", "p":
-			if m.stage == StageSettings && !m.editingDir {
-				m.settingsTab = (m.settingsTab - 1 + len(SettingCategories)) % len(SettingCategories)
-				m.settingsIndex = 0
-				return m, nil
-			}
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				if m.browsePage > 1 {
-					m.browsePage--
-					m.browseSearching = true
-					m.browseCursor = 0
-					return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage))
-				}
-				return m, nil
-			}
-
-		case "]", ">", "n":
-			if m.stage == StageSettings && !m.editingDir {
-				m.settingsTab = (m.settingsTab + 1) % len(SettingCategories)
-				m.settingsIndex = 0
-				return m, nil
-			}
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				m.browsePage++
-				m.browseSearching = true
-				m.browseCursor = 0
-				return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage))
-			}
-
-		case "1", "2", "3", "4":
-			if m.stage == StageSettings && !m.editingDir {
-				tIdx := int(msg.String()[0] - '1')
-				if tIdx >= 0 && tIdx < len(SettingCategories) {
-					m.settingsTab = tIdx
-					m.settingsIndex = 0
-					return m, nil
-				}
-			}
-
-		case "pgdown", "ctrl+d":
-			if m.stage == StageSearch && m.browseRegion == "content" {
-				results := m.getFilteredBrowseResults()
-				m.browseCursor += 10
-				if m.browseCursor >= len(results) {
-					m.browseCursor = len(results) - 1
-				}
-				if m.browseCursor < 0 {
-					m.browseCursor = 0
-				}
-				return m, nil
-			}
-
-		case "pgup", "ctrl+u":
-			if m.stage == StageSearch && m.browseRegion == "content" {
-				m.browseCursor -= 10
-				if m.browseCursor < 0 {
-					m.browseCursor = 0
-				}
-				return m, nil
-			}
-
-		case "home":
-			if m.stage == StageSearch && m.browseRegion == "content" {
-				m.browseCursor = 0
-				return m, nil
-			}
-
-		case "end":
-			if m.stage == StageSearch && m.browseRegion == "content" {
-				results := m.getFilteredBrowseResults()
-				if len(results) > 0 {
-					m.browseCursor = len(results) - 1
-				}
-				return m, nil
-			}
-
-		case "/":
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				m.browseRegion = "search"
-				m.browseInput.Focus()
-				return m, nil
-			}
-
-		case "enter":
-			switch m.stage {
-			case StageSearch:
-				if m.browseRegion == "search" {
-					q := strings.TrimSpace(m.browseInput.Value())
-					if q != "" {
-						if len(m.searchHistory) == 0 || m.searchHistory[0] != q {
-							m.searchHistory = append([]string{q}, m.searchHistory...)
-						}
-					}
-					m.searchHistoryPos = -1
-					m.draftSearch = ""
-					m.browseSearching = true
-					m.browseRegion = "content"
-					m.browseInput.Blur()
-					m.browsePage = 1
-					return m, tea.Batch(m.spinner.Tick, m.startSearch(q, m.browseCategory, 1))
-				}
-				if m.browseRegion == "sidebar" {
-					m.browseRegion = "content"
-					return m, nil
-				}
-				if r, ok := m.selectedTorrent(); ok {
-					return m, m.beginTorrentDownload(r, false)
-				}
-				return m, nil
-
-			case StageSeedPrompt:
-				val := strings.TrimSpace(m.seedInput.Value())
-				if val == "" {
-					return m, nil
-				}
-				clean := core.CleanLocalPath(val)
-				if _, err := os.Stat(clean); err != nil {
-					m.stage = StageError
-					m.errText = fmt.Sprintf("Seed target not found: %s", clean)
-					return m, nil
-				}
-				m.stage = StageProbing
-				m.statusText = "creating .torrent and seeding…"
-				return m, tea.Batch(m.spinner.Tick, m.startSeed(clean))
-
-			case StageSettings:
-				if m.editingDir {
-					val := strings.TrimSpace(m.settingsDir.Value())
-					if val != "" {
-						m.config.OutDir = units.ResolveUserPath(val)
-						_ = system.SaveConfig(m.config)
-					}
-					m.editingDir = false
-					return m, nil
-				}
-				if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
-					m.settingsTab = 0
-				}
-				cat := SettingCategories[m.settingsTab]
-				if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
-					item := cat.Items[m.settingsIndex]
-					if item.Key == "outDir" {
-						m.editingDir = true
-						m.settingsDir.SetValue(m.config.OutDir)
-						m.settingsDir.Focus()
-						return m, nil
-					}
-					CycleConfig(&m.config, item.Key, 1)
-					_ = system.SaveConfig(m.config)
-				}
-				return m, nil
-
-			case StageInput:
-				val := strings.TrimSpace(m.urlInput.Value())
-				if val == "" {
-					return m, nil
-				}
-				system.AddToHistory(val)
-				m.history = system.LoadHistory()
-				m.historyPos = -1
-				m.stage = StageProbing
-				m.statusText = "probing target…"
-				return m, tea.Batch(m.spinner.Tick, m.startInspect(val))
-
-			case StageDirectPrompt:
-				if m.promptChoice == 0 {
-					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.promptDest(m.target.Filename, fmt.Sprintf("%d connections · direct file", m.config.Connections))
-						return m, nil
-					}
-					return m, m.bakeInto(m.outputDir(), 1)
-				}
-				m.stage = StageInput
-				return m, nil
-
-			case StageTorrentPrompt:
-				if m.promptChoice == 0 {
-					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.promptDest(m.target.Name, "BitTorrent P2P transfer · aria2c")
-						return m, nil
-					}
-					return m, m.bakeInto(m.outputDir(), 1)
-				}
-				m.stage = StageInput
-				return m, nil
-
-			case StagePlaylistPrompt:
-				if m.promptChoice == 0 {
-					m.isPlaylistMode = true
-					plPortions := engine.ExtractPlaylistPortions(&engine.ExtractPortionsOptions{
-						EmbedMetadata:  &m.config.EmbedMetadata,
-						VideoContainer: m.config.VideoContainer,
-						VideoCodec:     m.config.VideoCodec,
-						AudioFormat:    m.config.AudioFormat,
-					})
-					m.portions = plPortions
-					m.selectedPortion = 0
-					m.stage = StageSelecting
-					return m, nil
-				}
-				// Single track
-				m.isPlaylistMode = false
-				m.stage = StageProbing
-				m.statusText = "probing single track…"
-				return m, tea.Batch(m.spinner.Tick, m.startProbeVideo(m.target))
-
-			case StageSelecting:
-				if m.target != nil && m.target.Type == core.TargetArchive && m.archivePost != nil {
-					if m.selectedPortion == 0 {
-						// Download all files
-						m.selectedArchiveFiles = m.archivePost.Files
-					} else if m.selectedPortion-1 < len(m.archivePost.Files) {
-						// Download single file
-						m.selectedArchiveFiles = []engine.ArchiveFile{m.archivePost.Files[m.selectedPortion-1]}
-					}
-					if m.config.AskSaveDir && m.initialOutDir == "" {
-						m.promptDest(m.archivePost.Title, fmt.Sprintf("Archive batch (%d items)", len(m.selectedArchiveFiles)))
-						return m, nil
-					}
-					return m, m.bakeInto(m.outputDir(), len(m.selectedArchiveFiles))
-				}
-
-				if m.config.AskSaveDir && m.initialOutDir == "" {
-					m.promptDest(m.destTargetTitle, m.destTargetSub)
-					return m, nil
-				}
-				return m, m.bakeInto(m.outputDir(), 1)
-
-			case StageDest:
-				if m.isCustomDest {
-					val := strings.TrimSpace(m.destInput.Value())
-					if val == "" {
-						val = m.config.OutDir
-					}
-					return m, m.bakeInto(units.ResolveUserPath(val), 1)
-				}
-				opts := BuildDestOptions(m.outputDir())
-				if m.destIndex >= 0 && m.destIndex < len(opts) {
-					opt := opts[m.destIndex]
-					if opt.IsCustom {
-						m.isCustomDest = true
-						m.destInput.SetValue(m.outputDir())
-						m.destInput.Focus()
-						return m, nil
-					}
-					return m, m.bakeInto(opt.Path, 1)
-				}
-			case StageBaked, StageError:
-				m.stage = StageInput
-				m.urlInput.Reset()
-				m.urlInput.Focus()
-				return m, nil
-			}
-
-		case "up", "ctrl+k":
-			if m.stage == StageSearch {
-				if m.browseRegion == "search" {
-					m.stepSearchHistory(true)
-					return m, nil
-				}
-				if m.browseRegion == "sidebar" {
-					return m, m.cycleCategory(-1)
-				}
-				if m.browseRegion == "content" {
-					if m.browseCursor > 0 {
-						m.browseCursor--
-					} else if m.browseCursor == 0 {
-						m.browseRegion = "search"
-						m.browseInput.Focus()
-					}
-					return m, nil
-				}
-			}
-			if m.stage == StageInput {
-				m.stepURLHistory(true)
-				return m, nil
-			}
-			if m.stage == StageDest && !m.isCustomDest {
-				if m.destIndex > 0 {
-					m.destIndex--
-				}
-				return m, nil
-			}
-			if m.stage == StageSettings {
-				if !m.editingDir && m.settingsIndex > 0 {
-					m.settingsIndex--
-				}
-				return m, nil
-			}
-			if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt {
-				if m.promptChoice > 0 {
-					m.promptChoice--
-				}
-				return m, nil
-			}
-			if m.stage == StageSelecting && m.selectedPortion > 0 {
-				m.selectedPortion--
-				return m, nil
-			}
-
-		case "down", "ctrl+j":
-			if m.stage == StageSearch {
-				if m.browseRegion == "search" {
-					m.stepSearchHistory(false)
-					return m, nil
-				}
-				if m.browseRegion == "sidebar" {
-					return m, m.cycleCategory(1)
-				}
-				if m.browseRegion == "content" {
-					results := m.getFilteredBrowseResults()
-					if m.browseCursor < len(results)-1 {
-						m.browseCursor++
-					}
-					return m, nil
-				}
-			}
-			if m.stage == StageInput {
-				m.stepURLHistory(false)
-				return m, nil
-			}
-			if m.stage == StageDest && !m.isCustomDest {
-				opts := BuildDestOptions(m.outputDir())
-				if m.destIndex < len(opts)-1 {
-					m.destIndex++
-				}
-				return m, nil
-			}
-			if m.stage == StageSettings {
-				if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
-					m.settingsTab = 0
-				}
-				cat := SettingCategories[m.settingsTab]
-				if !m.editingDir && m.settingsIndex < len(cat.Items)-1 {
-					m.settingsIndex++
-				}
-				return m, nil
-			}
-			if m.stage == StageDirectPrompt || m.stage == StageTorrentPrompt || m.stage == StagePlaylistPrompt {
-				if m.promptChoice < 1 {
-					m.promptChoice++
-				}
-				return m, nil
-			}
-			if m.stage == StageSelecting && m.selectedPortion < len(m.portions)-1 {
-				m.selectedPortion++
-				return m, nil
-			}
-
-		case "left", "h":
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				if m.browseRegion == "content" {
-					m.browseRegion = "sidebar"
-					return m, nil
-				}
-			}
-			if m.stage == StageSettings && !m.editingDir {
-				if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
-					m.settingsTab = 0
-				}
-				cat := SettingCategories[m.settingsTab]
-				if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
-					item := cat.Items[m.settingsIndex]
-					CycleConfig(&m.config, item.Key, -1)
-					_ = system.SaveConfig(m.config)
-				}
-				return m, nil
-			}
-
-		case "right", "l", " ", "space":
-			if m.stage == StageSearch && m.browseRegion != "search" {
-				if m.browseRegion == "sidebar" {
-					m.browseRegion = "content"
-					return m, nil
-				}
-				if m.browseRegion == "content" {
-					results := m.getFilteredBrowseResults()
-					if len(results) > m.browseCursor {
-						m.browseRegion = "detail"
-						selected := results[m.browseCursor]
-						m.browseDetail = &selected
-						return m, nil
-					}
-				}
-				if m.browseRegion == "detail" {
-					m.browseRegion = "content"
-					m.browseDetail = nil
-					return m, nil
-				}
-			}
-			if m.stage == StageSettings && !m.editingDir {
-				if m.settingsTab < 0 || m.settingsTab >= len(SettingCategories) {
-					m.settingsTab = 0
-				}
-				cat := SettingCategories[m.settingsTab]
-				if m.settingsIndex >= 0 && m.settingsIndex < len(cat.Items) {
-					item := cat.Items[m.settingsIndex]
-					CycleConfig(&m.config, item.Key, 1)
-					_ = system.SaveConfig(m.config)
-				}
-				return m, nil
-			}
+		next, cmd, handled := m.updateKey(msg)
+		if handled {
+			return next, cmd
 		}
+		m = next.(Model)
 
 	case updateCheckMsg:
 		m.latestVersion = msg.latestVersion
@@ -1584,6 +1632,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.startSeedingProcess(msg.torrentPath, filepath.Dir(msg.torrentPath))
 
+	case seedFailedMsg:
+		if !m.seedingActive {
+			return m, nil
+		}
+		m.seedingActive = false
+		m.stage = StageError
+		m.errText = "seeding stopped: " + msg.err.Error()
+		return m, nil
+
 	case toastClearMsg:
 		m.browseStatus = ""
 		return m, nil
@@ -1674,8 +1731,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					duration = *m.probeResult.Meta.Duration
 				}
 			}
-			if trackTitle != "" {
+			if trackTitle != "" && m.background != nil {
+				m.background.Add(1)
 				go func(audioPath, title, art string, dur float64) {
+					defer m.background.Done()
 					if lyr, err := engine.FetchLyrics(context.Background(), title, art, dur); err == nil && lyr != nil {
 						_, _ = engine.SaveLrcFile(audioPath, lyr)
 					}

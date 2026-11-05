@@ -133,7 +133,7 @@ func parseInstagramEmbedHTML(html []byte, id, rawURL string) (*ArchivePost, erro
 
 	title := "instagram_" + id
 	if len(media.Caption.Edges) > 0 {
-		if caption := sanitizeFilename(media.Caption.Edges[0].Node.Text); caption != "" {
+		if caption := SanitizeFilename(media.Caption.Edges[0].Node.Text); caption != "" {
 			title = caption
 		}
 	}

@@ -74,11 +74,11 @@ func ProbePixivPost(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		return nil, fmt.Errorf("pixiv api error: %s", illustData.Message)
 	}
 
-	title := sanitizeFilename(illustData.Body.Title)
+	title := SanitizeFilename(illustData.Body.Title)
 	if title == "" {
 		title = fmt.Sprintf("pixiv_%s", id)
 	}
-	user := sanitizeFilename(illustData.Body.UserName)
+	user := SanitizeFilename(illustData.Body.UserName)
 	if user == "" {
 		user = "pixiv_artist"
 	}

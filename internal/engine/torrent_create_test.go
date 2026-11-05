@@ -92,3 +92,25 @@ func TestCreateTorrentSkipsHiddenFiles(t *testing.T) {
 		t.Fatalf("hidden files leaked into torrent: expected %d bytes, got %d", len(visible), created.TotalBytes)
 	}
 }
+
+func TestCreateTorrentSkipsSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "data")
+	if err := os.Mkdir(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "a.bin"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(src, "a.bin"), filepath.Join(src, "link.bin")); err != nil {
+		t.Skip("symlinks unsupported:", err)
+	}
+
+	created, err := CreateTorrent(src, filepath.Join(dir, "out.torrent"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.TotalBytes != 5 {
+		t.Errorf("expected only the regular file (5 bytes), got %d", created.TotalBytes)
+	}
+}

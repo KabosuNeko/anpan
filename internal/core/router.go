@@ -100,10 +100,13 @@ func extractFilenameFromURL(rawURL string) string {
 		return "download"
 	}
 	base := path.Base(u.Path)
-	if base == "" || base == "." || base == "/" {
+	if base == "/" || base == "." {
 		return "download"
 	}
-	return base
+	if clean := engine.SanitizeFilename(base); clean != "" {
+		return clean
+	}
+	return "download"
 }
 
 // CleanLocalPath cleans dragged paths, unescapes spaces, strips quotes, and expands ~.
@@ -271,13 +274,12 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 		}, nil
 	}
 
-	pathname := strings.ToLower(u.Path)
-	ext := strings.TrimPrefix(path.Ext(pathname), ".")
+	ext := strings.ToLower(strings.TrimPrefix(path.Ext(u.Path), "."))
 	if directExtensions[ext] {
 		return &TargetInspection{
 			Type:     TargetDirect,
 			URL:      cleanURL,
-			Filename: path.Base(pathname),
+			Filename: extractFilenameFromURL(cleanURL),
 		}, nil
 	}
 
@@ -304,7 +306,7 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 				dispositionFilename := ""
 				if disposition != "" {
 					if _, params, err := mime.ParseMediaType(disposition); err == nil {
-						dispositionFilename = params["filename"]
+						dispositionFilename = engine.SanitizeFilename(params["filename"])
 					}
 				}
 

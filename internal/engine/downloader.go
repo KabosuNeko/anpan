@@ -74,11 +74,10 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 		})
 	}
 
+	useCache := opts.CachedJSONPath != "" && !opts.IsPlaylist
 	var args []string
-	if opts.CachedJSONPath != "" && !opts.IsPlaylist {
+	if useCache {
 		args = append(args, "--load-info-json", opts.CachedJSONPath)
-	} else {
-		args = append(args, opts.URL)
 	}
 	args = append(args, portionArgs...)
 
@@ -137,8 +136,12 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	if opts.WriteThumbnail {
 		args = append(args, "--write-thumbnail")
 	}
-	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+	if limitSet(opts.SpeedLimit) {
 		args = append(args, "--limit-rate", opts.SpeedLimit)
+	}
+
+	if !useCache {
+		args = append(args, "--", opts.URL)
 	}
 
 	if err := os.MkdirAll(opts.OutputDir, 0o755); err != nil {

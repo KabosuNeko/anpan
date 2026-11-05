@@ -153,7 +153,7 @@ func directArgs(outputDir string, connections int, extra ...string) []string {
 
 func BakeDirectDownload(ctx context.Context, opts DirectDownloadOptions, handlers BakeHandlers) (string, error) {
 	args := directArgs(opts.OutputDir, opts.Connections)
-	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+	if limitSet(opts.SpeedLimit) {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
 	if opts.Filename != "" {
@@ -185,11 +185,16 @@ func BakeTorrentDownload(ctx context.Context, opts TorrentDownloadOptions, handl
 	} else {
 		args = append(args, fmt.Sprintf("--seed-ratio=%s", opts.SeedRatio))
 	}
-	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+	if limitSet(opts.SpeedLimit) {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
 	args = append(args, opts.Target)
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
+}
+
+// limitSet reports whether a speed-limit setting actually limits anything.
+func limitSet(v string) bool {
+	return v != "" && v != "unlimited"
 }
 
 // TorrentSeedOptions specifies options for seeding a local torrent/file with aria2c.
@@ -198,24 +203,31 @@ type TorrentSeedOptions struct {
 	TorrentPath string
 	OutputDir   string
 	UploadLimit string
+	// Trackers, when set, restricts announcing to these trackers: no public trackers, DHT, PEX or LPD.
+	Trackers []string
 }
 
-// BakeTorrentSeed runs aria2c to seed a local torrent to the public DHT swarm.
+// BakeTorrentSeed runs aria2c to seed a local torrent, publicly unless custom trackers are given.
 func BakeTorrentSeed(ctx context.Context, opts TorrentSeedOptions, handlers BakeHandlers) (string, error) {
+	public := len(opts.Trackers) == 0
+	trackers := opts.Trackers
+	if public {
+		trackers = DefaultPublicTrackers
+	}
 	args := []string{
 		"-d", opts.OutputDir,
 		"--seed-ratio=0.0",
 		"--bt-seed-unverified=true",
 		"--summary-interval=1",
-		"--enable-dht=true",
-		"--enable-peer-exchange=true",
-		"--bt-enable-lpd=true",
+		fmt.Sprintf("--enable-dht=%t", public),
+		fmt.Sprintf("--enable-peer-exchange=%t", public),
+		fmt.Sprintf("--bt-enable-lpd=%t", public),
 	}
-	if opts.UploadLimit != "" && opts.UploadLimit != "unlimited" {
+	if limitSet(opts.UploadLimit) {
 		args = append(args, fmt.Sprintf("--max-upload-limit=%s", opts.UploadLimit))
 	}
-	if len(DefaultPublicTrackers) > 0 {
-		args = append(args, "--bt-tracker="+strings.Join(DefaultPublicTrackers, ","))
+	if len(trackers) > 0 {
+		args = append(args, "--bt-tracker="+strings.Join(trackers, ","))
 	}
 	args = append(args, opts.TorrentPath)
 	return runAria2Process(ctx, opts.Aria2cBin, args, opts.OutputDir, "", handlers)
@@ -263,7 +275,7 @@ func BakeBatchDownload(ctx context.Context, opts BatchDownloadOptions, handlers 
 	tmpFile.Close()
 
 	args := directArgs(opts.OutputDir, opts.Connections, "-i", tmpFile.Name())
-	if opts.SpeedLimit != "" && opts.SpeedLimit != "unlimited" {
+	if limitSet(opts.SpeedLimit) {
 		args = append(args, fmt.Sprintf("--max-download-limit=%s", opts.SpeedLimit))
 	}
 

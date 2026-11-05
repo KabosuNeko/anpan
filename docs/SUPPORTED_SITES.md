@@ -31,7 +31,7 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 
 ### Automated Directory Watcher Daemon (`anpan watch`)
 - Monitors a designated folder for incoming `.torrent`, `.magnet`, `.txt`, or `.link` files.
-- Downloads files in the background, moves finished items to `.processed/`, and triggers desktop alerts.
+- Downloads into `<watch_dir>/done/` by default (override with `--out-dir`), moves finished items to `.processed/`, and triggers desktop alerts.
 - Moves files that fail to `.failed/` instead of retrying them every scan.
 
 ---

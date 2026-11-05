@@ -38,7 +38,8 @@ Examples:
 			}
 			resolvedWatchDir := units.ResolveUserPath(watchDir)
 
-			resolvedOutDir := resolvedWatchDir
+			// Not the watch dir itself: downloaded .txt/.torrent files would be picked up as new jobs.
+			resolvedOutDir := filepath.Join(resolvedWatchDir, "done")
 			if watchOutDir != "" {
 				resolvedOutDir = units.ResolveUserPath(watchOutDir)
 			}
@@ -77,7 +78,7 @@ Examples:
 )
 
 func init() {
-	watchCmd.Flags().StringVarP(&watchOutDir, "out-dir", "o", "", "Destination directory for downloaded content")
+	watchCmd.Flags().StringVarP(&watchOutDir, "out-dir", "o", "", "Destination directory for downloaded content (default <watch_dir>/done)")
 	watchCmd.Flags().StringVarP(&watchLimit, "limit", "l", "", "Download speed limit (e.g. 5M, 500K)")
 	watchCmd.Flags().IntVarP(&watchConnections, "connections", "x", 16, "Maximum aria2c connections")
 	watchCmd.Flags().IntVar(&watchIntervalSec, "interval", 3, "Scan interval in seconds")

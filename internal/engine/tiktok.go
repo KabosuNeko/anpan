@@ -64,7 +64,7 @@ func probeTikTokPage(ctx context.Context, ytdlpBin, fetchURL, webpageURL string)
 	defer os.RemoveAll(dir)
 
 	cmd := exec.CommandContext(ctx, ytdlpBin,
-		"--write-pages", "--skip-download", "--ignore-no-formats-error", "--no-warnings", "--no-playlist", fetchURL)
+		"--write-pages", "--skip-download", "--ignore-no-formats-error", "--no-warnings", "--no-playlist", "--", fetchURL)
 	cmd.Dir = dir
 	cmd.Stdout = io.Discard
 	var stderr bytes.Buffer
@@ -121,14 +121,14 @@ func parseTikTokPhotoPage(content []byte, rawURL string) (*ArchivePost, error) {
 	if id == "" {
 		id = tiktokIDFromURL(rawURL)
 	}
-	author := sanitizeFilename(item.Author.UniqueID)
+	author := SanitizeFilename(item.Author.UniqueID)
 	if author == "" {
 		author = "tiktok"
 	}
 
-	title := sanitizeFilename(item.ImagePost.Title)
+	title := SanitizeFilename(item.ImagePost.Title)
 	if title == "" {
-		title = sanitizeFilename(item.Desc)
+		title = SanitizeFilename(item.Desc)
 	}
 	if title == "" {
 		title = "tiktok_" + id

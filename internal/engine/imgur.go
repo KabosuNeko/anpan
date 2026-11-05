@@ -68,11 +68,11 @@ func probeImgurImage(ctx context.Context, client *http.Client, id, rawURL string
 			ext = e
 		}
 	}
-	title := sanitizeFilename(res.Data.Title)
+	title := SanitizeFilename(res.Data.Title)
 	if title == "" {
 		title = fmt.Sprintf("imgur_%s", id)
 	}
-	name := sanitizeFilename(res.Data.Title)
+	name := SanitizeFilename(res.Data.Title)
 	if name == "" {
 		name = id
 	}
@@ -139,7 +139,7 @@ func ProbeImgurAlbum(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		return nil, fmt.Errorf("no images found in imgur album")
 	}
 
-	title := sanitizeFilename(res.Data.Title)
+	title := SanitizeFilename(res.Data.Title)
 	if title == "" {
 		title = fmt.Sprintf("imgur_%s", albumID)
 	}
@@ -156,7 +156,7 @@ func ProbeImgurAlbum(ctx context.Context, rawURL string) (*ArchivePost, error) {
 
 		fn := fmt.Sprintf("%02d_%s%s", i+1, img.ID, ext)
 		if img.Title != "" {
-			if clean := sanitizeFilename(img.Title); clean != "" {
+			if clean := SanitizeFilename(img.Title); clean != "" {
 				fn = fmt.Sprintf("%02d_%s%s", i+1, clean, ext)
 			}
 		}

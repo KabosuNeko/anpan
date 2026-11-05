@@ -2,7 +2,10 @@ package core
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -82,5 +85,23 @@ func TestInspectTargetTorlinkFeatures(t *testing.T) {
 	clean := CleanLocalPath("'/home/user/My Videos/sample.mp4'")
 	if clean != "/home/user/My Videos/sample.mp4" {
 		t.Errorf("CleanLocalPath failed: got %q", clean)
+	}
+}
+
+func TestInspectTargetDirectFilename(t *testing.T) {
+	res, err := InspectTarget(context.Background(), "https://example.com/Ubuntu-24.04.ISO")
+	if err != nil || res.Type != TargetDirect || res.Filename != "Ubuntu-24.04.ISO" {
+		t.Errorf("direct filename should keep case: %+v, err: %v", res, err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", `attachment; filename="../../.bashrc"`)
+	}))
+	defer srv.Close()
+
+	res, err = InspectTarget(context.Background(), srv.URL+"/get")
+	if err != nil || res.Type != TargetDirect || strings.Contains(res.Filename, "/") {
+		t.Errorf("server filename must not contain path separators: %+v, err: %v", res, err)
 	}
 }
