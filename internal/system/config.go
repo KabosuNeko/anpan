@@ -126,6 +126,8 @@ func LoadConfig() AnpanConfig {
 		}
 		return loaded
 	}
+	// Keep the unreadable file so the next SaveConfig does not overwrite the user's settings.
+	_ = os.Rename(configPath(), configPath()+".bad")
 	return cfg
 }
 

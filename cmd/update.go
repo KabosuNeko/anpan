@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/KabosuNeko/anpan/internal/system"
 	"github.com/spf13/cobra"
@@ -57,14 +58,15 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 		req.Header.Set("User-Agent", "anpan/"+Version)
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{Timeout: 10 * time.Minute}
+		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("download failed (HTTP %d), please install manually via install script", resp.StatusCode)
 		}
-		defer resp.Body.Close()
 
 		tmpArchive, err := os.CreateTemp("", "anpan-update-*"+assetExt)
 		if err != nil {

@@ -72,12 +72,14 @@ Examples:
 				fmt.Printf("anpan — batch queue (%d items)\n", total)
 			}
 
+			failed := 0
 			for i, target := range targets {
 				if batch {
 					fmt.Printf("\n[%d/%d] → %s\n", i+1, total, target)
 				}
 
 				model := tui.NewModel(Version, target, outputDir)
+				model.ExitWhenDone = batch
 				p := tea.NewProgram(model)
 				model.SetProgram(p)
 
@@ -86,20 +88,32 @@ Examples:
 					if !batch {
 						return err
 					}
+					failed++
 					fmt.Printf("✗ failed: %v\n", err)
 					continue
 				}
-				if m, ok := finalModel.(tui.Model); ok && m.FinalPath != "" {
-					if batch {
-						fmt.Printf("✓ done → %s\n", m.FinalPath)
-					} else {
-						fmt.Printf("done → %s\n", m.FinalPath)
-					}
+				m, ok := finalModel.(tui.Model)
+				if !ok {
+					continue
+				}
+				m.WaitBackground()
+				switch {
+				case m.FinalPath != "" && batch:
+					fmt.Printf("✓ done → %s\n", m.FinalPath)
+				case m.FinalPath != "":
+					fmt.Printf("done → %s\n", m.FinalPath)
+				case batch && m.Failed != "":
+					failed++
+					fmt.Printf("✗ failed: %s\n", m.Failed)
+				}
+				if batch && m.Cancelled {
+					fmt.Printf("\n✗ batch stopped (%d of %d items not run)\n", total-i-1, total)
+					return nil
 				}
 			}
 
 			if batch {
-				fmt.Printf("\n✓ batch queue completed (%d items)\n", total)
+				fmt.Printf("\n✓ batch queue completed (%d items, %d failed)\n", total, failed)
 			}
 
 			check := system.CheckUpdate(context.Background(), Version, nil)

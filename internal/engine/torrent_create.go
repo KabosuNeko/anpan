@@ -64,7 +64,8 @@ func CreateTorrent(sourcePath string, outPath string, opts *TorrentCreateOptions
 				}
 				return nil
 			}
-			if strings.HasPrefix(info.Name(), ".") || strings.HasSuffix(info.Name(), ".torrent") {
+			// Symlinks report their own size, not the target's, and FIFOs block on open.
+			if !info.Mode().IsRegular() || strings.HasPrefix(info.Name(), ".") || strings.HasSuffix(info.Name(), ".torrent") {
 				return nil
 			}
 			rel, relErr := filepath.Rel(absPath, path)

@@ -830,3 +830,62 @@ func TestAppCtrlJKStepsSearchHistory(t *testing.T) {
 		t.Fatalf("ctrl+j should return to the draft, got %q", m.browseInput.Value())
 	}
 }
+
+func containsQuit(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+	switch msg := cmd().(type) {
+	case tea.QuitMsg:
+		return true
+	case tea.BatchMsg:
+		for _, c := range msg {
+			if containsQuit(c) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func TestAppExitWhenDone(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+
+	m := NewModel("0.0.0-test", "", "")
+	m.config.Notifications = false
+	m.stage = StageBaking
+
+	newM, cmd := m.Update(bakeDoneMsg{err: fmt.Errorf("boom")})
+	if containsQuit(cmd) || newM.(Model).Failed != "" {
+		t.Fatalf("interactive run must stay open after a failure")
+	}
+
+	m.ExitWhenDone = true
+	newM, cmd = m.Update(bakeDoneMsg{err: fmt.Errorf("boom")})
+	if !containsQuit(cmd) || newM.(Model).Failed != "boom" {
+		t.Errorf("batch run should quit with Failed set, got Failed=%q", newM.(Model).Failed)
+	}
+
+	newM, cmd = m.Update(bakeDoneMsg{path: "/tmp/x.mp4"})
+	if !containsQuit(cmd) || newM.(Model).FinalPath != "/tmp/x.mp4" {
+		t.Errorf("batch run should quit after a successful bake")
+	}
+}
+
+func TestAppSeedFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+
+	m := NewModel("0.0.0-test", "", "")
+	m.stage = StageSeeding
+	m.seedingActive = true
+
+	newM, _ := m.Update(seedFailedMsg{err: fmt.Errorf("port in use")})
+	got := newM.(Model)
+	if got.stage != StageError || got.seedingActive || !strings.Contains(got.errText, "port in use") {
+		t.Errorf("seed failure should show an error, got stage=%s errText=%q", got.stage, got.errText)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,16 +41,19 @@ func BinaryResponds(cmd string, args ...string) bool {
 	return c.Run() == nil
 }
 
+// localYtDlp returns the path of the anpan-managed yt-dlp binary.
+func localYtDlp() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(AnpanBinDir(), "yt-dlp.exe")
+	}
+	return filepath.Join(AnpanBinDir(), "yt-dlp")
+}
+
 func HasMutagen(ytdlpPath string) bool {
 	if strings.Contains(ytdlpPath, ".anpan") || strings.Contains(ytdlpPath, "yt-dlp_") {
 		return true
 	}
-	binName := "yt-dlp"
-	if runtime.GOOS == "windows" {
-		binName = "yt-dlp.exe"
-	}
-	localBin := filepath.Join(AnpanBinDir(), binName)
-	if BinaryResponds(localBin, "--version") {
+	if BinaryResponds(localYtDlp(), "--version") {
 		return true
 	}
 	return BinaryResponds("python3", "-c", "import mutagen")
@@ -79,14 +83,47 @@ func safeReplaceBinary(src, dst string) error {
 	return nil
 }
 
+// ytDlpUpdateAge is how old the managed yt-dlp may get before anpan runs its self-update.
+const ytDlpUpdateAge = 7 * 24 * time.Hour
+
+var resolvedYtDlp struct {
+	sync.Mutex
+	path string
+}
+
+// EnsureYtDlpBinary returns a usable yt-dlp, downloading or refreshing the managed copy as needed.
+// A successful result is cached for the life of the process.
 func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, error) {
-	binName := "yt-dlp"
-	if runtime.GOOS == "windows" {
-		binName = "yt-dlp.exe"
+	resolvedYtDlp.Lock()
+	defer resolvedYtDlp.Unlock()
+	if resolvedYtDlp.path != "" {
+		return resolvedYtDlp.path, nil
 	}
-	localBin := filepath.Join(AnpanBinDir(), binName)
+	path, err := ensureYtDlpBinary(ctx, onStatus)
+	if err == nil {
+		resolvedYtDlp.path = path
+	}
+	return path, err
+}
+
+// refreshYtDlp self-updates the managed yt-dlp at most once per ytDlpUpdateAge; failures keep the current binary.
+func refreshYtDlp(ctx context.Context, localBin string) {
+	fi, err := os.Stat(localBin)
+	if err != nil || time.Since(fi.ModTime()) < ytDlpUpdateAge {
+		return
+	}
+	updCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	_ = exec.CommandContext(updCtx, localBin, "-U").Run()
+	now := time.Now()
+	_ = os.Chtimes(localBin, now, now)
+}
+
+func ensureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, error) {
+	localBin := localYtDlp()
 
 	if BinaryResponds(localBin, "--version") {
+		refreshYtDlp(ctx, localBin)
 		return localBin, nil
 	}
 
@@ -117,8 +154,8 @@ func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 		return fallback(err)
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Do(req)
+	// No client timeout: the binary is ~35 MB and slow links need longer; ctx lets the user cancel.
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fallback(fmt.Errorf("could not download standalone yt-dlp: %w", err))
 	}

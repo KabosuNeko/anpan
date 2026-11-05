@@ -89,6 +89,7 @@ Examples:
 				TorrentPath: created.TorrentPath,
 				OutputDir:   seedDir,
 				UploadLimit: seedLimit,
+				Trackers:    seedTrackers,
 			}, engine.BakeHandlers{})
 
 			if bakeErr != nil && ctx.Err() == nil {

@@ -82,14 +82,14 @@ func ProbePixeldrainList(ctx context.Context, rawURL string) (*ArchivePost, erro
 		return nil, fmt.Errorf("no files found in this pixeldrain list")
 	}
 
-	title := sanitizeFilename(listData.Title)
+	title := SanitizeFilename(listData.Title)
 	if title == "" {
 		title = fmt.Sprintf("pixeldrain_list_%s", id)
 	}
 
 	var files []ArchiveFile
 	for _, f := range listData.Files {
-		fn := sanitizeFilename(f.Name)
+		fn := SanitizeFilename(f.Name)
 		if fn == "" {
 			fn = fmt.Sprintf("file_%s", f.ID)
 		}
@@ -127,7 +127,7 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 						Name string `json:"name"`
 					}
 					if err := json.NewDecoder(resp.Body).Decode(&info); err == nil {
-						filename := sanitizeFilename(info.Name)
+						filename := SanitizeFilename(info.Name)
 						if filename == "" {
 							filename = fmt.Sprintf("pixeldrain_%s", id)
 						}
@@ -155,7 +155,7 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 				defer resp.Body.Close()
 				filename := ""
 				if _, params, err := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); err == nil {
-					filename = sanitizeFilename(params["filename"])
+					filename = SanitizeFilename(params["filename"])
 				}
 				if filename == "" {
 					filename = fmt.Sprintf("gdrive_%s", id)
@@ -178,7 +178,7 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 		if err == nil && u.Path != "" {
 			parts := strings.Split(u.Path, "/")
 			if len(parts) > 0 && parts[len(parts)-1] != "" {
-				filename = sanitizeFilename(parts[len(parts)-1])
+				filename = SanitizeFilename(parts[len(parts)-1])
 			}
 		}
 		return &CloudDirectFile{
@@ -201,7 +201,7 @@ func ProbeCloudHost(ctx context.Context, rawURL string) (*CloudDirectFile, error
 					if u, err := url.Parse(directLink); err == nil {
 						parts := strings.Split(u.Path, "/")
 						if len(parts) > 0 && parts[len(parts)-1] != "" {
-							filename = sanitizeFilename(parts[len(parts)-1])
+							filename = SanitizeFilename(parts[len(parts)-1])
 						}
 					}
 					return &CloudDirectFile{

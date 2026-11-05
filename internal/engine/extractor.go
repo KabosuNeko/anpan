@@ -84,7 +84,7 @@ func CleanErrorOutput(stderr string) string {
 }
 
 func ProbeVideo(ctx context.Context, ytdlpBin string, rawURL string) (*ProbeResult, error) {
-	cmd := exec.CommandContext(ctx, ytdlpBin, "-J", "--no-playlist", "--no-warnings", rawURL)
+	cmd := exec.CommandContext(ctx, ytdlpBin, "-J", "--no-playlist", "--no-warnings", "--", rawURL)
 	out, err := cmd.Output()
 	if err != nil {
 		stderr := ""
@@ -527,7 +527,7 @@ type PlaylistMeta struct {
 }
 
 func ProbePlaylist(ctx context.Context, ytdlpBin string, rawURL string) (*PlaylistMeta, error) {
-	cmd := exec.CommandContext(ctx, ytdlpBin, "--flat-playlist", "-J", "--no-warnings", rawURL)
+	cmd := exec.CommandContext(ctx, ytdlpBin, "--flat-playlist", "-J", "--no-warnings", "--", rawURL)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err

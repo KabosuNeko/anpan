@@ -65,7 +65,7 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 		return nil, fmt.Errorf("no files found in this archive.org item")
 	}
 
-	title := sanitizeFilename(res.Metadata.Title)
+	title := SanitizeFilename(res.Metadata.Title)
 	if title == "" {
 		title = itemID
 	}
@@ -84,7 +84,7 @@ func ProbeArchiveOrg(ctx context.Context, rawURL string) (*ArchivePost, error) {
 			if cleanName == "" {
 				continue
 			}
-			name := sanitizeFilename(cleanName)
+			name := SanitizeFilename(cleanName)
 			if name == "" {
 				continue
 			}
