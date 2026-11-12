@@ -889,3 +889,24 @@ func TestAppSeedFailure(t *testing.T) {
 		t.Errorf("seed failure should show an error, got stage=%s errText=%q", got.stage, got.errText)
 	}
 }
+
+func TestAppPlaylistPromptDefaultsToVideo(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+
+	m := NewModel("0.0.0-test", "", "")
+	meta := &engine.PlaylistMeta{Title: "list", TrackCount: 300}
+
+	m.target = &core.TargetInspection{Type: core.TargetVideo, CleanURL: "https://www.youtube.com/watch?v=abc&list=PL1"}
+	newM, _ := m.Update(probePlaylistMsg{meta: meta})
+	if got := newM.(Model); got.stage != StagePlaylistPrompt || got.promptChoice != 1 {
+		t.Errorf("video inside a playlist should default to single track, got choice %d", got.promptChoice)
+	}
+
+	m.target = &core.TargetInspection{Type: core.TargetVideo, CleanURL: "https://www.youtube.com/playlist?list=PL1"}
+	newM, _ = m.Update(probePlaylistMsg{meta: meta})
+	if got := newM.(Model); got.promptChoice != 0 {
+		t.Errorf("playlist URL should default to full playlist, got choice %d", got.promptChoice)
+	}
+}

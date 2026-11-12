@@ -120,3 +120,44 @@ func IsPlaylistURL(rawURL string) bool {
 	}
 	return false
 }
+
+func isYouTubeHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "youtu.be" || host == "youtube.com" || strings.HasSuffix(host, ".youtube.com")
+}
+
+// HasVideoID reports whether a YouTube URL names one video (watch?v=, youtu.be/<id>, /shorts/<id>),
+// even when it also carries a list= parameter.
+func HasVideoID(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || !isYouTubeHost(u.Hostname()) {
+		return false
+	}
+	if strings.EqualFold(u.Hostname(), "youtu.be") {
+		return strings.Trim(u.Path, "/") != ""
+	}
+	return u.Query().Get("v") != "" || strings.HasPrefix(u.Path, "/shorts/")
+}
+
+// StripYouTubeMix drops the list of an auto-generated YouTube mix (list=RD…) from a video URL.
+// YouTube adds these endless mixes when a video is opened, so the user almost always means the one video.
+// Curated YouTube Music lists (RDCLAK…) are real playlists and are kept.
+func StripYouTubeMix(rawURL string) string {
+	if !HasVideoID(rawURL) {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	q := u.Query()
+	list := q.Get("list")
+	if !strings.HasPrefix(list, "RD") || strings.HasPrefix(list, "RDCLAK") {
+		return rawURL
+	}
+	for _, k := range []string{"list", "index", "start_radio", "pp"} {
+		q.Del(k)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}

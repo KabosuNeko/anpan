@@ -235,7 +235,7 @@ func InspectTarget(ctx context.Context, rawInput string) (*TargetInspection, err
 	}
 
 	parsedInput := ParseURLInput(trimmed)
-	cleanURL := parsedInput.CleanURL
+	cleanURL := StripYouTubeMix(parsedInput.CleanURL)
 
 	for _, ap := range archiveProbes {
 		if !ap.match(cleanURL) {

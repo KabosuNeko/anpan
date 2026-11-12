@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -24,7 +25,18 @@ func FindAria2c() (string, error) {
 	if err := cmd.Run(); err == nil {
 		return "aria2c", nil
 	}
-	return "", fmt.Errorf("aria2c not found")
+	return "", fmt.Errorf("aria2c not found; install it with: %s", aria2InstallHint())
+}
+
+func aria2InstallHint() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "brew install aria2"
+	case "windows":
+		return "winget install aria2.aria2 (then open a new terminal)"
+	default:
+		return "sudo pacman -S aria2 | sudo apt install aria2 | sudo dnf install aria2"
+	}
 }
 
 func BuildAria2cArgs(aria2cPath string, connections int) []string {

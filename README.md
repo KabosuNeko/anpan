@@ -36,6 +36,9 @@
 
 ## Installation
 
+> **Requirements:** [`aria2c`](https://aria2.github.io/) is needed for torrents and direct downloads, and `ffmpeg` for format conversion. `yt-dlp` is downloaded automatically if missing.
+> Arch: `sudo pacman -S aria2 ffmpeg` · Debian/Ubuntu: `sudo apt install aria2 ffmpeg` · macOS: `brew install aria2 ffmpeg` · Windows: `winget install aria2.aria2 Gyan.FFmpeg`
+
 **Linux / macOS:**
 ```sh
 curl -fsSL https://raw.githubusercontent.com/KabosuNeko/anpan/main/install.sh | bash

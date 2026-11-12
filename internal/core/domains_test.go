@@ -75,3 +75,28 @@ func TestIsTikTokURL(t *testing.T) {
 		}
 	}
 }
+
+func TestStripYouTubeMix(t *testing.T) {
+	cases := map[string]string{
+		"https://youtu.be/Yo77euCUBsk?list=RDYo77euCUBsk":                              "https://youtu.be/Yo77euCUBsk",
+		"https://www.youtube.com/watch?v=Yo77euCUBsk&list=RDYo77euCUBsk&start_radio=1": "https://www.youtube.com/watch?v=Yo77euCUBsk",
+		"https://www.youtube.com/watch?v=Yo77euCUBsk&list=PL123&index=4":               "https://www.youtube.com/watch?v=Yo77euCUBsk&list=PL123&index=4",
+		"https://music.youtube.com/watch?v=Yo77euCUBsk&list=RDCLAK5uy_abc":             "https://music.youtube.com/watch?v=Yo77euCUBsk&list=RDCLAK5uy_abc",
+		"https://www.youtube.com/playlist?list=RDYo77euCUBsk":                          "https://www.youtube.com/playlist?list=RDYo77euCUBsk",
+		"https://example.com/watch?v=x&list=RDx":                                       "https://example.com/watch?v=x&list=RDx",
+	}
+	for in, want := range cases {
+		if got := StripYouTubeMix(in); got != want {
+			t.Errorf("StripYouTubeMix(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestHasVideoID(t *testing.T) {
+	if !HasVideoID("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123") || !HasVideoID("https://youtu.be/dQw4w9WgXcQ?list=PL1") {
+		t.Errorf("expected video id")
+	}
+	if HasVideoID("https://www.youtube.com/playlist?list=PL123") || HasVideoID("https://soundcloud.com/a/sets/b") {
+		t.Errorf("expected no video id")
+	}
+}

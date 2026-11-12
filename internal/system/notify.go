@@ -6,12 +6,22 @@ import (
 	"html"
 	"os/exec"
 	"runtime"
+	"sync"
 	"time"
 )
 
+var pendingNotifications sync.WaitGroup
+
+// WaitNotifications blocks until notifications already sent have been handed to the OS (5s max each).
+func WaitNotifications() {
+	pendingNotifications.Wait()
+}
+
 // SendNotification sends a non-blocking desktop notification.
 func SendNotification(title, message string) {
+	pendingNotifications.Add(1)
 	go func() {
+		defer pendingNotifications.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 

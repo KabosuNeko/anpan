@@ -156,6 +156,8 @@ type seedCreatedMsg struct {
 
 type toastClearMsg struct{}
 
+type statusMsg string
+
 type seedFailedMsg struct {
 	err error
 }
@@ -392,11 +394,23 @@ func (m Model) Init() tea.Cmd {
 func (m Model) startInspect(raw string) tea.Cmd {
 	return func() tea.Msg {
 		target, err := core.InspectTarget(m.ctx, raw)
+		if err == nil && (target.Type == core.TargetTorrent || target.Type == core.TargetDirect || target.Type == core.TargetArchive) {
+			// Fail before the destination prompt instead of after it.
+			if _, ariaErr := engine.FindAria2c(); ariaErr != nil {
+				return inspectMsg{err: ariaErr}
+			}
+		}
 		return inspectMsg{target: target, err: err}
 	}
 }
 
-func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
+// sendStatus shows a progress line while probing (e.g. while yt-dlp is being fetched).
+func (m Model) sendStatus(s string) {
+	m.bridge.Send(statusMsg(s))
+}
+
+// startProbeVideo probes target with yt-dlp; allowPlaylist=false skips the playlist check (single track chosen).
+func (m Model) startProbeVideo(target *core.TargetInspection, allowPlaylist bool) tea.Cmd {
 	return func() tea.Msg {
 		if engine.IsInstagramPostURL(target.CleanURL) {
 			if post, igErr := engine.ProbeInstagramPost(m.ctx, target.CleanURL); igErr == nil && post != nil && len(post.Files) > 0 {
@@ -404,13 +418,13 @@ func (m Model) startProbeVideo(target *core.TargetInspection) tea.Cmd {
 			}
 		}
 
-		ytdlp, err := engine.EnsureYtDlpBinary(m.ctx, nil)
+		ytdlp, err := engine.EnsureYtDlpBinary(m.ctx, m.sendStatus)
 		if err != nil {
 			return probeResultMsg{err: err}
 		}
+		m.sendStatus("extracting formats with yt-dlp…")
 
-		// If playlist url
-		if core.IsPlaylistURL(target.CleanURL) {
+		if allowPlaylist && core.IsPlaylistURL(target.CleanURL) {
 			plMeta, plErr := engine.ProbePlaylist(m.ctx, ytdlp, target.CleanURL)
 			if plErr == nil && plMeta != nil {
 				return probePlaylistMsg{meta: plMeta}
@@ -533,7 +547,7 @@ func (m Model) startBake() tea.Cmd {
 		}
 
 		// Video / Playlist bake
-		ytdlp, err := engine.EnsureYtDlpBinary(m.ctx, nil)
+		ytdlp, err := engine.EnsureYtDlpBinary(m.ctx, m.sendStatus)
 		if err != nil {
 			return bakeDoneMsg{err: err}
 		}
@@ -1254,7 +1268,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) 
 			m.isPlaylistMode = false
 			m.stage = StageProbing
 			m.statusText = "probing single track…"
-			return m, tea.Batch(m.spinner.Tick, m.startProbeVideo(m.target)), true
+			return m, tea.Batch(m.spinner.Tick, m.startProbeVideo(m.target, false)), true
 
 		case StageSelecting:
 			if m.target != nil && m.target.Type == core.TargetArchive && m.archivePost != nil {
@@ -1567,7 +1581,7 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case core.TargetVideo:
 			m.statusText = "extracting formats with yt-dlp…"
-			return m, m.startProbeVideo(msg.target)
+			return m, m.startProbeVideo(msg.target, true)
 
 		case core.TargetSearch:
 			m.stage = StageSearch
@@ -1632,6 +1646,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.startSeedingProcess(msg.torrentPath, filepath.Dir(msg.torrentPath))
 
+	case statusMsg:
+		if m.stage == StageProbing {
+			m.statusText = string(msg)
+		}
+		return m, nil
+
 	case seedFailedMsg:
 		if !m.seedingActive {
 			return m, nil
@@ -1653,6 +1673,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.playlistMeta = msg.meta
 		m.promptChoice = 0
+		if m.target != nil && core.HasVideoID(m.target.CleanURL) {
+			// A video opened from a playlist: default to that video, not the whole list.
+			m.promptChoice = 1
+		}
 		m.stage = StagePlaylistPrompt
 		return m, nil
 

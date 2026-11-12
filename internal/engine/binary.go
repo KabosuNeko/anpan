@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/KabosuNeko/anpan/internal/units"
 )
 
 const releaseBase = "https://github.com/yt-dlp/yt-dlp/releases/latest/download"
@@ -107,10 +109,13 @@ func EnsureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 }
 
 // refreshYtDlp self-updates the managed yt-dlp at most once per ytDlpUpdateAge; failures keep the current binary.
-func refreshYtDlp(ctx context.Context, localBin string) {
+func refreshYtDlp(ctx context.Context, localBin string, onStatus func(msg string)) {
 	fi, err := os.Stat(localBin)
 	if err != nil || time.Since(fi.ModTime()) < ytDlpUpdateAge {
 		return
+	}
+	if onStatus != nil {
+		onStatus("updating yt-dlp…")
 	}
 	updCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -123,7 +128,7 @@ func ensureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 	localBin := localYtDlp()
 
 	if BinaryResponds(localBin, "--version") {
-		refreshYtDlp(ctx, localBin)
+		refreshYtDlp(ctx, localBin, onStatus)
 		return localBin, nil
 	}
 
@@ -171,7 +176,11 @@ func ensureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 		return "", err
 	}
 
-	_, err = io.Copy(out, resp.Body)
+	var body io.Reader = resp.Body
+	if onStatus != nil {
+		body = &progressReader{r: resp.Body, total: resp.ContentLength, onStatus: onStatus}
+	}
+	_, err = io.Copy(out, body)
 	_ = out.Close()
 	if err != nil {
 		_ = os.Remove(tmpPath)
@@ -184,4 +193,27 @@ func ensureYtDlpBinary(ctx context.Context, onStatus func(msg string)) (string, 
 	_ = os.Chmod(localBin, 0o755)
 
 	return localBin, nil
+}
+
+// progressReader reports download progress through onStatus at most twice a second.
+type progressReader struct {
+	r        io.Reader
+	read     int64
+	total    int64
+	last     time.Time
+	onStatus func(msg string)
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	p.read += int64(n)
+	if time.Since(p.last) >= 500*time.Millisecond {
+		p.last = time.Now()
+		msg := "downloading yt-dlp " + units.FormatBytes(float64(p.read))
+		if p.total > 0 {
+			msg += " / " + units.FormatBytes(float64(p.total))
+		}
+		p.onStatus(msg + "…")
+	}
+	return n, err
 }

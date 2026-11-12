@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	Version   = "1.0.3"
+	Version   = "1.0.4"
 	outputDir string
 	inputFile string
 
@@ -40,6 +40,7 @@ Examples:
   anpan url1 url2 url3
   anpan                 (prompts for input)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			defer system.WaitNotifications()
 			var targets []string
 
 			if inputFile != "" {
