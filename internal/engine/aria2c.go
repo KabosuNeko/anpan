@@ -57,6 +57,7 @@ type AriaProgress struct {
 	ETA             *float64
 	Connections     int
 	Seeders         *int
+	Seeding         bool
 }
 
 func ParseAriaEta(etaStr string) *float64 {
@@ -73,21 +74,26 @@ var (
 	ariaCNRegex     = regexp.MustCompile(`\bCN:(\d+)`)
 	ariaSDRegex     = regexp.MustCompile(`\bSD:(\d+)`)
 	ariaDLRegex     = regexp.MustCompile(`\bDL:([0-9.]+[A-Za-z]*)`)
-	ariaULRegex     = regexp.MustCompile(`\bUL:([0-9.]+[A-Za-z]*)`)
+	ariaULRegex     = regexp.MustCompile(`\bUL:([0-9.]+[A-Za-z]*)(?:\(([0-9.]+[A-Za-z]*)\))?`)
+	ariaSeedRegex   = regexp.MustCompile(`^\[#[0-9a-fA-F]+\s+SEED\(`)
 	ariaETARegex    = regexp.MustCompile(`\bETA:([0-9a-zA-Z]+)`)
 )
 
 func ParseAriaProgressLine(line string) *AriaProgress {
+	// While seeding aria2c prints "[#gid SEED(ratio) CN:n SD:n UL:speed(total)]"; DownloadedBytes then holds the uploaded total.
+	seeding := ariaSeedRegex.MatchString(line)
 	headerMatch := ariaHeaderRegex.FindStringSubmatch(line)
-	if headerMatch == nil {
+	if headerMatch == nil && !seeding {
 		return nil
 	}
 
-	downloadedBytes := float64(units.ParseBytes(headerMatch[1]))
-	totalBytesVal := float64(units.ParseBytes(headerMatch[2]))
+	var downloadedBytes float64
 	var totalBytes *float64
-	if totalBytesVal > 0 {
-		totalBytes = &totalBytesVal
+	if headerMatch != nil {
+		downloadedBytes = float64(units.ParseBytes(headerMatch[1]))
+		if totalBytesVal := float64(units.ParseBytes(headerMatch[2])); totalBytesVal > 0 {
+			totalBytes = &totalBytesVal
+		}
 	}
 
 	connections := 1
@@ -113,6 +119,9 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 		if ulSpeed > 0 && speed == 0 {
 			speed = ulSpeed
 		}
+		if seeding {
+			downloadedBytes = float64(units.ParseBytes(ulMatch[2]))
+		}
 	}
 
 	var eta *float64
@@ -130,6 +139,7 @@ func ParseAriaProgressLine(line string) *AriaProgress {
 		Seeders:         seeders,
 		Speed:           speed,
 		ETA:             eta,
+		Seeding:         seeding,
 	}
 }
 
@@ -346,8 +356,12 @@ func runAria2Process(
 			if aria.ETA != nil {
 				etaVal = *aria.ETA
 			}
-			if handlers.OnProgress != nil {
-				handlers.OnProgress(BakeProgress{
+			onProgress := handlers.OnProgress
+			if aria.Seeding {
+				onProgress = handlers.OnSeedProgress
+			}
+			if onProgress != nil {
+				onProgress(BakeProgress{
 					DownloadedBytes: aria.DownloadedBytes,
 					TotalBytes:      aria.TotalBytes,
 					Speed:           aria.Speed,

@@ -2,6 +2,8 @@ package engine
 
 import (
 	"testing"
+
+	"github.com/KabosuNeko/anpan/internal/units"
 )
 
 func TestParseAriaEta(t *testing.T) {
@@ -63,5 +65,24 @@ func TestDirectArgsDoesNotOverwrite(t *testing.T) {
 		if a == "--allow-overwrite=true" || a == "--auto-file-renaming=false" {
 			t.Fatalf("directArgs must not force overwriting existing files: %v", args)
 		}
+	}
+}
+
+func TestParseAriaSeedLine(t *testing.T) {
+	p := ParseAriaProgressLine("[#5aa77a SEED(0.4) CN:3 SD:0 UL:12KiB(3.4MiB)]")
+	if p == nil || !p.Seeding {
+		t.Fatalf("seed line should parse as seeding, got %+v", p)
+	}
+	if p.Connections != 3 || p.Speed != 12*1024 || p.DownloadedBytes != float64(units.ParseBytes("3.4MiB")) {
+		t.Errorf("unexpected seed progress %+v", p)
+	}
+
+	idle := ParseAriaProgressLine("[#5aa77a SEED(0.0) CN:0 SD:0]")
+	if idle == nil || !idle.Seeding || idle.DownloadedBytes != 0 {
+		t.Errorf("idle seed line should parse with zero upload, got %+v", idle)
+	}
+
+	if dl := ParseAriaProgressLine("[#2089b0 1.2MiB/10MiB(12%) CN:16 DL:3.4MiB ETA:3s]"); dl == nil || dl.Seeding {
+		t.Errorf("download line must not be marked as seeding: %+v", dl)
 	}
 }

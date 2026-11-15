@@ -144,6 +144,7 @@ type probePlaylistMsg struct {
 type searchResultsMsg struct {
 	results []engine.TorrentSearchResult
 	err     error
+	seq     int
 }
 
 type seedCreatedMsg struct {
@@ -163,6 +164,8 @@ type seedFailedMsg struct {
 }
 
 type bakeProgressMsg engine.BakeProgress
+
+type seedProgressMsg engine.BakeProgress
 
 type bakeProcessingMsg struct{}
 
@@ -262,14 +265,16 @@ type Model struct {
 	browseMinSeeds   int
 	searchHistory    []string
 	searchHistoryPos int
+	searchSeq        int
 	draftSearch      string
 
 	// Seeding stage
-	seedInput     textinput.Model
-	seedingActive bool
-	seedingName   string
-	seedingMagnet string
-	seedingCancel context.CancelFunc
+	seedInput       textinput.Model
+	seedingActive   bool
+	seedingName     string
+	seedingMagnet   string
+	seedingCancel   context.CancelFunc
+	seedingProgress engine.BakeProgress
 
 	// Final outcome
 	FinalPath string
@@ -590,7 +595,11 @@ func (m Model) startBake() tea.Cmd {
 	}
 }
 
-func (m Model) startSearch(query, category string, page int) tea.Cmd {
+// startSearch runs a torrent search; only the newest request's results are shown.
+func (m *Model) startSearch(query, category string, page int) tea.Cmd {
+	m.searchSeq++
+	seq := m.searchSeq
+	sortBy := m.browseSort
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(m.ctx, 12*time.Second)
 		defer cancel()
@@ -600,10 +609,10 @@ func (m Model) startSearch(query, category string, page int) tea.Cmd {
 		results, err := engine.SearchTorrents(ctx, query, &engine.SearchOptions{
 			Category: category,
 			Limit:    100,
-			SortBy:   m.browseSort,
+			SortBy:   sortBy,
 			Page:     page,
 		})
-		return searchResultsMsg{results: results, err: err}
+		return searchResultsMsg{results: results, err: err, seq: seq}
 	}
 }
 
@@ -744,7 +753,8 @@ func (m *Model) cycleCategory(delta int) tea.Cmd {
 	m.browseSearching = true
 	m.browseCursor = 0
 	m.browsePage = 1
-	return tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, 1))
+	cmd := m.startSearch(m.browseInput.Value(), m.browseCategory, 1)
+	return tea.Batch(m.spinner.Tick, cmd)
 }
 
 // cycleBrowseFocus moves focus between the browse regions; forward follows tab order.
@@ -797,8 +807,12 @@ func (m Model) startSeed(targetPath string) tea.Cmd {
 }
 
 func (m *Model) startSeedingProcess(torrentPath, dataDir string) tea.Cmd {
+	if m.seedingCancel != nil {
+		m.seedingCancel()
+	}
 	seedCtx, cancel := context.WithCancel(context.Background())
 	m.seedingCancel = cancel
+	m.seedingProgress = engine.BakeProgress{}
 
 	return func() tea.Msg {
 		aria2c, err := engine.FindAria2c()
@@ -806,8 +820,8 @@ func (m *Model) startSeedingProcess(torrentPath, dataDir string) tea.Cmd {
 			return seedFailedMsg{err: err}
 		}
 		handlers := engine.BakeHandlers{
-			OnProgress: func(p engine.BakeProgress) {
-				m.bridge.Send(bakeProgressMsg(p))
+			OnSeedProgress: func(p engine.BakeProgress) {
+				m.bridge.Send(seedProgressMsg(p))
 			},
 		}
 		_, err = engine.BakeTorrentSeed(seedCtx, engine.TorrentSeedOptions{
@@ -851,7 +865,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) 
 		m.browsePage = 1
 		if len(m.browseResults) == 0 {
 			m.browseSearching = true
-			return m, tea.Batch(m.spinner.Tick, m.startSearch("", m.browseCategory, 1)), true
+			cmd := m.startSearch("", m.browseCategory, 1)
+			return m, tea.Batch(m.spinner.Tick, cmd), true
 		}
 		return m, nil, true
 
@@ -1075,7 +1090,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) 
 				m.browsePage--
 				m.browseSearching = true
 				m.browseCursor = 0
-				return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)), true
+				cmd := m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)
+				return m, tea.Batch(m.spinner.Tick, cmd), true
 			}
 			return m, nil, true
 		}
@@ -1090,7 +1106,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) 
 			m.browsePage++
 			m.browseSearching = true
 			m.browseCursor = 0
-			return m, tea.Batch(m.spinner.Tick, m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)), true
+			cmd := m.startSearch(m.browseInput.Value(), m.browseCategory, m.browsePage)
+			return m, tea.Batch(m.spinner.Tick, cmd), true
 		}
 
 	case "1", "2", "3", "4":
@@ -1163,7 +1180,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (_ tea.Model, _ tea.Cmd, handled bool) 
 				m.browseRegion = "content"
 				m.browseInput.Blur()
 				m.browsePage = 1
-				return m, tea.Batch(m.spinner.Tick, m.startSearch(q, m.browseCategory, 1)), true
+				cmd := m.startSearch(q, m.browseCategory, 1)
+				return m, tea.Batch(m.spinner.Tick, cmd), true
 			}
 			if m.browseRegion == "sidebar" {
 				m.browseRegion = "content"
@@ -1592,7 +1610,8 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.browseSearching = true
 			m.browseCursor = 0
 			m.browsePage = 1
-			return m, tea.Batch(m.spinner.Tick, m.startSearch(msg.target.SearchQuery, "all", 1))
+			cmd := m.startSearch(msg.target.SearchQuery, "all", 1)
+			return m, tea.Batch(m.spinner.Tick, cmd)
 
 		case core.TargetSeed:
 			m.stage = StageSeedPrompt
@@ -1602,6 +1621,9 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case searchResultsMsg:
+		if msg.seq != m.searchSeq {
+			return m, nil
+		}
 		m.browseSearching = false
 		if msg.err != nil {
 			if m.browsePage > 1 {
@@ -1731,6 +1753,10 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.bakingProgress = engine.BakeProgress(msg)
 		return m, nil
 
+	case seedProgressMsg:
+		m.seedingProgress = engine.BakeProgress(msg)
+		return m, nil
+
 	case bakeDoneMsg:
 		if msg.err != nil {
 			m.stage = StageError
@@ -1845,7 +1871,7 @@ func (m Model) View() tea.View {
 			MinSeeds:        m.browseMinSeeds,
 			SeedingActive:   m.seedingActive,
 			SeedingName:     m.seedingName,
-			SeedingProgress: m.bakingProgress,
+			SeedingProgress: m.seedingProgress,
 			SeedingMagnet:   m.seedingMagnet,
 		}
 		searchView := RenderBrowseView(browseState)
@@ -1894,11 +1920,11 @@ func (m Model) View() tea.View {
 		}
 		header := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleRegular.Render(units.Truncate(title, panelWidth)))
 		speedStr := ""
-		if m.bakingProgress.Speed > 0 {
-			speedStr = units.FormatSpeed(m.bakingProgress.Speed) + " UL"
+		if m.seedingProgress.Speed > 0 {
+			speedStr = units.FormatSpeed(m.seedingProgress.Speed) + " UL"
 		}
-		bytesStr := units.FormatBytes(m.bakingProgress.DownloadedBytes) + " uploaded"
-		peersStr := fmt.Sprintf("%d peers", m.bakingProgress.Connections)
+		bytesStr := units.FormatBytes(m.seedingProgress.DownloadedBytes) + " uploaded"
+		peersStr := fmt.Sprintf("%d peers", m.seedingProgress.Connections)
 		statsLine := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleSuccess.Render(fmt.Sprintf("%s  ·  %s  ·  %s", speedStr, bytesStr, peersStr)))
 		magLine := lipgloss.NewStyle().Width(panelWidth).Align(lipgloss.Center).Render(styleDim.Render("Magnet copied to clipboard! (press y to re-copy)"))
 		stageBlock = fmt.Sprintf("%s\n\n%s\n\n%s", header, statsLine, magLine)

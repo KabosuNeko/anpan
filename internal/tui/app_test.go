@@ -910,3 +910,37 @@ func TestAppPlaylistPromptDefaultsToVideo(t *testing.T) {
 		t.Errorf("playlist URL should default to full playlist, got choice %d", got.promptChoice)
 	}
 }
+
+func TestAppIgnoresStaleSearchResults(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+
+	m := NewModel("0.0.0-test", "", "")
+	m.stage = StageSearch
+	_ = m.startSearch("", "all", 1)
+	_ = m.startSearch("frieren", "all", 1)
+
+	newM, _ := m.Update(searchResultsMsg{results: []engine.TorrentSearchResult{{Title: "frieren"}}, seq: 2})
+	newM, _ = newM.(Model).Update(searchResultsMsg{results: []engine.TorrentSearchResult{{Title: "trending"}}, seq: 1})
+
+	got := newM.(Model).browseResults
+	if len(got) != 1 || got[0].Title != "frieren" {
+		t.Errorf("stale results replaced the newest search: %+v", got)
+	}
+}
+
+func TestAppNewSeedStopsPreviousSeeder(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+
+	m := NewModel("0.0.0-test", "", "")
+	stopped := false
+	m.seedingCancel = func() { stopped = true }
+	_ = m.startSeedingProcess("a.torrent", dir)
+	if !stopped {
+		t.Errorf("starting a new seed must stop the previous aria2c seeder")
+	}
+	m.seedingCancel()
+}

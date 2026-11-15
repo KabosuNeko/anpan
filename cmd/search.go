@@ -29,7 +29,7 @@ var (
 Supported sources:
   - SubsPlease & Nyaa (Anime & Japanese Games)
   - YTS (Movies)
-  - EZTV (TV Shows)
+  - EZTV (latest TV uploads, browse only)
   - The Pirate Bay (General releases & PC/Console Games)
   - 1337x (Movies, TV Shows & Games)
   - FitGirl Repacks (Verified PC Game Repacks)

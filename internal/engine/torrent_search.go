@@ -464,6 +464,10 @@ func containsAllTokens(haystack string, tokens []string) bool {
 }
 
 func searchEZTV(ctx context.Context, query string, cat string, page int) ([]TorrentSearchResult, error) {
+	// The EZTV API has no text search, only a latest-uploads feed, so it is used for browsing only.
+	if strings.TrimSpace(query) != "" {
+		return nil, nil
+	}
 	endpoint := fmt.Sprintf("https://eztvx.to/api/get-torrents?limit=100&page=%d", page)
 	dataBytes, err := fetchHTML(ctx, endpoint, browserUserAgent)
 	if err != nil {

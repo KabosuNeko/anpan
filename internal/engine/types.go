@@ -16,4 +16,6 @@ type BakeProgress struct {
 type BakeHandlers struct {
 	OnProgress   func(progress BakeProgress)
 	OnProcessing func()
+	// OnSeedProgress receives aria2c seeding status; DownloadedBytes then holds the uploaded total.
+	OnSeedProgress func(progress BakeProgress)
 }

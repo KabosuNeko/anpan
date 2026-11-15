@@ -14,7 +14,7 @@ When a query is entered via `Ctrl+F` (`^f search torrent`), CLI `anpan search`, 
 | **SubsPlease** | Anime | REST JSON API (`subsplease.org/api`) | High-speed releases, automated batch resolution extraction |
 | **Nyaa** | Anime, Japanese Games, Audio | RSS XML API with fast mirror fallback (`nyaa.net` / `nyaa.si`) | Rich seeder counts, human-readable file sizes parsed accurately |
 | **YTS** | Movies | REST JSON API (`yts.mx/api/v2`) | 720p, 1080p, and 4K movie releases with health stats |
-| **EZTV** | TV Shows | REST JSON API (`eztvx.to/api`) | Episodic releases with flexible JSON type decoding |
+| **EZTV** | TV Shows (browse latest only) | REST JSON API (`eztvx.to/api`) | No text search in the API, so it is skipped when a query is given |
 | **The Pirate Bay** | All, Anime, Movies, TV, Games | Clean REST API (`apibay.org`) | Broad historical releases, dedicated category top 100 browse |
 | **1337x** | Movies, TV, Games | Scraped HTML parser with mirror failover | Multi-category coverage, verified uploaders |
 | **FitGirl Repacks** | Verified PC Game Repacks | RSS XML Feed (`fitgirl-repacks.site/feed`) | Highly compressed, trusted, verified game repacks |

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const progressTag = "ANPAN|"
@@ -149,6 +150,14 @@ func BakeVideo(ctx context.Context, opts BakeVideoOptions, handlers BakeHandlers
 	}
 
 	cmd := exec.CommandContext(ctx, opts.YtdlpBin, args...)
+	// Interrupt instead of kill so yt-dlp stops its aria2c/ffmpeg children; WaitDelay kills it if it hangs.
+	cmd.Cancel = func() error {
+		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			return cmd.Process.Kill() // Windows has no SIGINT for child processes.
+		}
+		return nil
+	}
+	cmd.WaitDelay = 5 * time.Second
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
